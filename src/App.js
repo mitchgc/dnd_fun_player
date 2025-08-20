@@ -76,7 +76,9 @@ const DnDCompanionApp = () => {
       perception: 6,
       investigation: 5,
       survival: 6,
-      sleightOfHand: 6
+      sleightOfHand: 6,
+      nature: 5,
+      intimidation: 2
     },
     backstory: {
       background: "Urban Bounty Hunter",
@@ -438,7 +440,7 @@ const DnDCompanionApp = () => {
     ].sort((a, b) => b.modifier - a.modifier),
     skills: [
       { id: 'stealth', name: 'Stealth', modifier: character.skills.stealth, type: 'skill', proficient: true, expertise: true },
-      { id: 'insight', name: 'Insight', modifier: character.skills.insight, type: 'skill', proficient: true },
+      { id: 'insight', name: 'Insight', modifier: character.skills.insight, type: 'skill', proficient: true, expertise: true },
       { id: 'sleight-of-hand', name: 'Sleight of Hand', modifier: character.skills.sleightOfHand, type: 'skill', proficient: true },
       { id: 'perception', name: 'Perception', modifier: character.skills.perception, type: 'skill', proficient: true },
       { id: 'survival', name: 'Survival', modifier: character.skills.survival, type: 'skill', proficient: true },
@@ -448,11 +450,11 @@ const DnDCompanionApp = () => {
       { id: 'medicine', name: 'Medicine', modifier: abilityMods.wis, type: 'skill' },
       { id: 'arcana', name: 'Arcana', modifier: abilityMods.int, type: 'skill' },
       { id: 'history', name: 'History', modifier: abilityMods.int, type: 'skill' },
-      { id: 'nature', name: 'Nature', modifier: abilityMods.int, type: 'skill' },
+      { id: 'nature', name: 'Nature', modifier: character.skills.nature, type: 'skill', proficient: true },
       { id: 'religion', name: 'Religion', modifier: abilityMods.int, type: 'skill' },
       { id: 'athletics', name: 'Athletics', modifier: abilityMods.str, type: 'skill' },
       { id: 'deception', name: 'Deception', modifier: abilityMods.cha, type: 'skill' },
-      { id: 'intimidation', name: 'Intimidation', modifier: abilityMods.cha, type: 'skill' },
+      { id: 'intimidation', name: 'Intimidation', modifier: character.skills.intimidation, type: 'skill', proficient: true },
       { id: 'performance', name: 'Performance', modifier: abilityMods.cha, type: 'skill' },
       { id: 'persuasion', name: 'Persuasion', modifier: abilityMods.cha, type: 'skill' }
     ].sort((a, b) => b.modifier - a.modifier),
@@ -844,6 +846,67 @@ const DnDCompanionApp = () => {
     setCurrentHP(prev => Math.max(0, Math.min(character.maxHP, prev + amount)));
   };
 
+  // Standardized Button Component - All buttons use vertical layout with ICON/TITLE/Subtext structure
+  const ActionButton = ({ 
+    onClick, 
+    disabled = false, 
+    variant = 'primary', 
+    icon,
+    title,
+    subtitle,
+    children, 
+    className = '',
+    loading = false 
+  }) => {
+    const baseClasses = "font-semibold transition-all duration-300 rounded-xl border p-4";
+    
+    const variantClasses = {
+      primary: disabled 
+        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
+        : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:scale-105 border-blue-500',
+      secondary: disabled
+        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600' 
+        : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white shadow-lg hover:scale-105 border-gray-500',
+      danger: disabled
+        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
+        : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:scale-105 border-red-500',
+      success: disabled
+        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
+        : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:scale-105 border-green-500',
+      purple: disabled
+        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
+        : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg hover:scale-105 border-purple-500',
+      teal: disabled
+        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
+        : 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white shadow-lg hover:scale-105 border-teal-500'
+    };
+
+    const renderContent = () => {
+      if (loading) return <span className="text-sm font-semibold">...</span>;
+      
+      if (children) return children;
+
+      // Standard vertical layout: ICON / TITLE / Subtext
+      return (
+        <div className="flex flex-col items-center justify-center gap-2">
+          {icon && <span className="flex-shrink-0 text-xl">{icon}</span>}
+          {title && <span className="text-sm font-semibold text-center leading-tight">{title}</span>}
+          {subtitle && <span className="text-xs font-medium opacity-80 text-center">{subtitle}</span>}
+        </div>
+      );
+    };
+
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled || loading}
+        className={`${baseClasses} ${variantClasses[variant]} flex flex-col items-center justify-center ${className}`}
+      >
+        {renderContent()}
+      </button>
+    );
+  };
+
   // Main Battle Interface
   const BattleInterface = () => (
     <div className="p-4 md:p-6 space-y-6">
@@ -862,22 +925,13 @@ const DnDCompanionApp = () => {
               isHidden ? 'text-purple-400' : 'text-blue-400'
             }`} size={32} />
             <div>
-              <h2 className="text-3xl font-bold text-white flex items-center">
+              <h2 className="text-3xl font-bold text-white">
                 Defensive
-                <Sparkles className={`ml-2 transition-colors duration-1000 ${
-                  isHidden ? 'text-purple-400' : 'text-yellow-500'
-                }`} size={24} />
               </h2>
               <p className="text-gray-300 font-medium">{character.name} - {character.race} {character.class}</p>
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            {isHidden && (
-              <span className="flex items-center space-x-2 px-4 py-2 rounded-xl font-bold bg-purple-600 text-white shadow-lg animate-pulse shadow-purple-500/50">
-                <EyeOff size={20} />
-                <span>Hidden</span>
-              </span>
-            )}
             <div className={`transform transition-transform duration-300 ${
               defensiveCollapsed ? 'rotate-180' : ''
             }`}>
@@ -897,70 +951,86 @@ const DnDCompanionApp = () => {
                   className="absolute inset-0 bg-green-500/10 transition-all duration-500"
                   style={{ width: `${(currentHP / character.maxHP) * 100}%` }}
                 ></div>
-                <div className="relative flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Heart className="text-green-400 mr-3" size={24} />
-                    <span className="text-lg font-bold text-white">Health</span>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    {hpEditing ? (
-                      <input
-                        type="number"
-                        value={hpEditValue}
-                        onChange={(e) => setHpEditValue(e.target.value)}
-                        onBlur={() => {
-                          const newHP = Math.max(0, Math.min(character.maxHP, parseInt(hpEditValue) || 0));
-                          setCurrentHP(newHP);
-                          setHpEditing(false);
-                          setHpEditValue('');
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center">
+                      <Heart className="text-green-400 mr-3" size={24} />
+                      <span className="text-lg font-bold text-white">Health</span>
+                    </div>
+                    <div className="flex items-center">
+                      {hpEditing ? (
+                        <input
+                          type="number"
+                          value={hpEditValue}
+                          onChange={(e) => setHpEditValue(e.target.value)}
+                          onBlur={() => {
                             const newHP = Math.max(0, Math.min(character.maxHP, parseInt(hpEditValue) || 0));
                             setCurrentHP(newHP);
                             setHpEditing(false);
                             setHpEditValue('');
-                          } else if (e.key === 'Escape') {
-                            setHpEditing(false);
-                            setHpEditValue('');
-                          }
-                        }}
-                        className="text-2xl font-bold text-green-400 bg-transparent border border-green-400 rounded px-2 py-1 w-20 text-center"
-                        autoFocus
-                        placeholder={currentHP.toString()}
-                      />
-                    ) : (
-                      <span 
-                        onClick={() => {
-                          setHpEditing(true);
-                          setHpEditValue(currentHP.toString());
-                        }}
-                        className="text-2xl font-bold text-green-400 cursor-pointer hover:bg-gray-700 rounded px-2 py-1 transition-colors"
-                        title="Click to edit HP directly"
-                      >
-                        {currentHP}/{character.maxHP}
-                      </span>
-                    )}
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const newHP = Math.max(0, Math.min(character.maxHP, parseInt(hpEditValue) || 0));
+                              setCurrentHP(newHP);
+                              setHpEditing(false);
+                              setHpEditValue('');
+                            } else if (e.key === 'Escape') {
+                              setHpEditing(false);
+                              setHpEditValue('');
+                            }
+                          }}
+                          className="text-2xl font-bold text-green-400 bg-transparent border border-green-400 rounded px-2 py-1 w-20 text-center"
+                          autoFocus
+                          placeholder={currentHP.toString()}
+                        />
+                      ) : (
+                        <span 
+                          onClick={() => {
+                            setHpEditing(true);
+                            setHpEditValue(currentHP.toString());
+                          }}
+                          className="text-2xl font-bold text-green-400 cursor-pointer hover:bg-gray-700 rounded px-2 py-1 transition-colors"
+                          title="Click to edit HP directly"
+                        >
+                          {currentHP}/{character.maxHP}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <ActionButton 
+                      onClick={() => openRollPopup('heal')}
+                      variant="success"
+                      icon={<Sparkles />}
+                      title="Heal"
+                    />
+                    <ActionButton 
+                      onClick={() => openRollPopup('', { type: 'damage-input' })}
+                      variant="danger"
+                      icon={<Heart />}
+                      title="Damage"
+                    />
                   </div>
                 </div>
               </div>
 
               {/* Armor Row */}
-              <div className="bg-gray-800 p-4 rounded-xl border-2 border-blue-400">
+              <div className="bg-gray-800 p-4 rounded-xl border-2 border-gray-600">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Shield className="text-blue-400 mr-3" size={24} />
-                    <span className="text-lg font-bold text-white">Armor Class</span>
+                    <Shield className="text-gray-400 mr-3" size={24} />
+                    <span className="text-lg font-bold text-gray-300">Armor Class</span>
                   </div>
-                  <span className="text-2xl font-bold text-blue-400">{character.ac}</span>
+                  <span className="text-2xl font-bold text-gray-300">{character.ac}</span>
                 </div>
               </div>
 
               {/* Resistances/Defensive Abilities */}
-              <div className="bg-gray-800 p-4 rounded-xl border-2 border-purple-500">
+              <div className="bg-gray-800 p-4 rounded-xl border-2 border-gray-600">
                 <div className="flex items-center mb-3">
-                  <Shield className="text-purple-400 mr-3" size={24} />
-                  <span className="text-lg font-bold text-white">Defensive Abilities</span>
+                  <Shield className="text-gray-400 mr-3" size={24} />
+                  <span className="text-lg font-bold text-gray-300">Defensive Abilities</span>
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                   {Object.entries(character.defensiveAbilities).map(([key, ability]) => (
@@ -990,23 +1060,6 @@ const DnDCompanionApp = () => {
               </div>
             </div>
 
-            {/* Action Buttons at Bottom */}
-            <div className="flex justify-center space-x-4 pt-4">
-              <button 
-                onClick={() => openRollPopup('heal')}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
-              >
-                <Sparkles className="mr-2" size={20} />
-                Heal
-              </button>
-              <button 
-                onClick={() => openRollPopup('', { type: 'damage-input' })}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
-              >
-                <Heart className="mr-2" size={20} />
-                Take Damage
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -1026,11 +1079,8 @@ const DnDCompanionApp = () => {
               isHidden ? 'text-purple-400' : 'text-red-400'
             }`} size={32} />
             <div>
-              <h2 className="text-3xl font-bold text-white flex items-center">
+              <h2 className="text-3xl font-bold text-white">
                 Your Turn
-                <Sparkles className={`ml-2 transition-colors duration-1000 ${
-                  isHidden ? 'text-purple-400' : 'text-yellow-500'
-                }`} size={24} />
               </h2>
               <p className="text-gray-300 font-medium">Actions, Bonus Actions & Movement</p>
             </div>
@@ -1062,48 +1112,38 @@ const DnDCompanionApp = () => {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-4 gap-3">
             {Object.entries(character.weapons).map(([key, weapon]) => {
               const stats = getWeaponStats(key);
               return (
-                <button
+                <ActionButton
                   key={key}
                   onClick={() => handleAttack(key)}
                   disabled={turnState.actionUsed}
-                  className={`p-6 rounded-xl font-semibold transition-all duration-300 transform ${
-                    turnState.actionUsed || buttonStates[`attack-${key}`]
-                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
-                      : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:scale-105 border border-red-500'
-                  }`}
-                >
-                  <div className="text-lg font-bold">{weapon.name}</div>
-                  <div className="text-sm opacity-90 mt-2 space-y-1">
-                    <div className="flex items-center">
-                      <Target className="text-blue-400 mr-1" size={14} />
-                      {stats.minHit}-{stats.maxHit} to hit
-                      {isHidden && <span className="text-red-200 ml-1">(advantage!)</span>}
-                    </div>
-                    <div className="flex items-center">
-                      <Sword className="text-red-400 mr-1" size={14} />
-                      {stats.minDamage}-{stats.maxDamage} dmg
-                    </div>
-                    {isHidden && <div className="text-red-200 font-bold">💀 +sneak attack!</div>}
-                  </div>
-                </button>
+                  variant="danger"
+                  loading={buttonStates[`attack-${key}`]}
+                  icon={key === 'shortbow' ? <span>🏹</span> : <Sword />}
+                  title={isHidden ? `${weapon.name} (Sneak Attack)` : weapon.name}
+                  subtitle={`${stats.minDamage}-${stats.maxDamage} dmg`}
+                />
               );
             })}
           </div>
           
-          <div className="mt-4 text-sm text-red-300 bg-gray-800 p-4 rounded-xl border border-red-600">
-            💡 <strong>Tip:</strong> As a rogue, you do bonus damage if you're hidden first
+          <div className={`mt-4 text-sm bg-gray-800 p-4 rounded-xl border ${isHidden ? 'text-purple-300 border-purple-600' : 'text-red-300 border-red-600'}`}>
+            {isHidden ? (
+              <>🥷 <strong>You are hidden</strong> - doing {character.sneakAttackDice}d6 extra sneak attack damage</>
+            ) : (
+              <>💡 <strong>Tip:</strong> As a rogue, you do bonus damage if you're hidden first</>
+            )}
           </div>
         </div>
 
             {/* Bonus Action Section */}
-            <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-purple-600">
+            <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-gray-600">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-white flex items-center">
-              <Sparkles className="mr-3 text-purple-400" size={24} />
+            <h3 className="text-xl font-bold text-gray-300 flex items-center">
+              <Sparkles className="mr-3 text-gray-400" size={24} />
               Bonus Action
             </h3>
             <div className={`px-3 py-1 rounded-lg text-sm font-medium border ${
@@ -1115,8 +1155,8 @@ const DnDCompanionApp = () => {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <button
+          <div className="grid grid-cols-4 gap-3">
+            <ActionButton
               onClick={() => {
                 if (isHidden) {
                   // If already hidden, just reveal without rolling
@@ -1131,56 +1171,34 @@ const DnDCompanionApp = () => {
                 }
               }}
               disabled={!isHidden && turnState.bonusActionUsed}
-              className={`p-4 rounded-xl font-semibold transition-all duration-300 flex flex-col items-center justify-center space-y-2 shadow-lg hover:scale-105 border ${
-                (!isHidden && turnState.bonusActionUsed)
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
-                  : isHidden
-                    ? 'bg-gradient-to-r from-purple-700 to-purple-800 text-white border-purple-400 shadow-purple-500/50'
-                    : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white border-purple-500'
-              }`}
-            >
-              {isHidden ? <Eye size={24} /> : <EyeOff size={24} />}
-              <span className="text-sm">{isHidden ? 'Reveal' : 'Hide'}</span>
-            </button>
+              variant="purple"
+              icon={isHidden ? <Eye /> : <EyeOff />}
+              title={isHidden ? 'Reveal' : 'Hide'}
+            />
             
-            <button
+            <ActionButton
               onClick={handleBonusActionDash}
               disabled={turnState.bonusActionUsed}
-              className={`p-4 rounded-xl font-semibold transition-all duration-300 flex flex-col items-center justify-center space-y-2 ${
-                turnState.bonusActionUsed
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
-                  : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:scale-105 border border-blue-500'
-              }`}
-            >
-              <span className="text-2xl">💨</span>
-              <span className="text-sm">Dash</span>
-            </button>
+              variant="secondary"
+              icon={<span>💨</span>}
+              title="Dash"
+            />
             
-            <button
+            <ActionButton
               onClick={handleDisengage}
               disabled={turnState.bonusActionUsed}
-              className={`p-4 rounded-xl font-semibold transition-all duration-300 flex flex-col items-center justify-center space-y-2 ${
-                turnState.bonusActionUsed
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
-                  : 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white shadow-lg hover:scale-105 border border-teal-500'
-              }`}
-            >
-              <span className="text-2xl">🏃</span>
-              <span className="text-sm">Disengage</span>
-            </button>
+              variant="secondary"
+              icon={<span>🏃</span>}
+              title="Disengage"
+            />
             
-            <button
+            <ActionButton
               onClick={handleUseItem}
               disabled={turnState.bonusActionUsed}
-              className={`p-4 rounded-xl font-semibold transition-all duration-300 flex flex-col items-center justify-center space-y-2 ${
-                turnState.bonusActionUsed
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
-                  : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:scale-105 border border-green-500'
-              }`}
-            >
-              <Package size={24} />
-              <span className="text-sm">Use Item</span>
-            </button>
+              variant="secondary"
+              icon={<Package />}
+              title="Use Item"
+            />
           </div>
           
           <div className="mt-4 text-sm text-purple-300 bg-gray-800 p-4 rounded-xl border border-purple-600">
@@ -1189,29 +1207,30 @@ const DnDCompanionApp = () => {
         </div>
 
             {/* Movement Section */}
-            <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-yellow-600">
+            <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-gray-600">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-white">🏃‍♂️ Movement</h3>
-            <div className="px-3 py-1 rounded-lg text-sm font-medium border bg-yellow-900/30 border-yellow-600 text-yellow-300">
+            <h3 className="text-xl font-bold text-gray-300">🏃‍♂️ Movement</h3>
+            <div className="px-3 py-1 rounded-lg text-sm font-medium border bg-gray-700 border-gray-600 text-gray-300">
               {30 - turnState.movementUsed} ft remaining
             </div>
           </div>
           
-          <div className="bg-gray-800 rounded-xl p-4 border border-yellow-600">
-            <p className="text-sm text-yellow-300">
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-600">
+            <p className="text-sm text-gray-300">
               💡 <strong>Tip:</strong> You can move before and/or after your action or bonus actions
             </p>
           </div>
         </div>
 
             {/* End Turn Controls */}
-            <div className="text-center space-y-3 pt-4">
-              <button
+            <div className="grid grid-cols-4 gap-3 pt-4">
+              <ActionButton
                 onClick={resetTurn}
-                className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg border border-gray-600"
-              >
-                🔄 End Turn
-              </button>
+                variant="primary"
+                icon={<span>🔄</span>}
+                title="End Turn"
+                className="!bg-gradient-to-r !from-indigo-600 !to-indigo-700 !hover:from-indigo-700 !hover:to-indigo-800 !border-indigo-500"
+              />
             </div>
           </div>
         )}
@@ -1259,57 +1278,108 @@ const DnDCompanionApp = () => {
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Skills */}
-          <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-purple-600">
-            <h3 className="text-xl font-bold mb-4 text-purple-300 flex items-center">
+          <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-gray-600">
+            <h3 className="text-xl font-bold mb-4 text-gray-300 flex items-center">
               <Eye className="mr-2" size={20} />
-              Key Skills
+              All Skills
             </h3>
-            <div className="grid grid-cols-1 gap-3">
-              <div className="flex justify-between items-center bg-gray-700 p-3 rounded-lg border border-purple-500">
-                <span className="font-semibold text-white">🥷 Stealth</span>
-                <span className="font-bold text-purple-400">+{character.skills.stealth}</span>
-              </div>
-              <div className="flex justify-between items-center bg-gray-700 p-3 rounded-lg border border-purple-500">
-                <span className="font-semibold text-white">👁️ Insight</span>
-                <span className="font-bold text-purple-400">+{character.skills.insight}</span>
-              </div>
-              <div className="flex justify-between items-center bg-gray-700 p-3 rounded-lg border border-purple-500">
-                <span className="font-semibold text-white">🔍 Perception</span>
-                <span className="font-bold text-purple-400">+{character.skills.perception}</span>
-              </div>
-              <div className="flex justify-between items-center bg-gray-700 p-3 rounded-lg border border-purple-500">
-                <span className="font-semibold text-white">🕵️ Investigation</span>
-                <span className="font-bold text-purple-400">+{character.skills.investigation}</span>
-              </div>
+            <div className="grid grid-cols-1 gap-2">
+              {rollActions.skills.map((skill) => {
+                const skillEmojis = {
+                  'stealth': '🥷',
+                  'insight': '👁️',
+                  'perception': '🔍',
+                  'investigation': '🕵️',
+                  'sleight-of-hand': '🤹',
+                  'survival': '🏕️',
+                  'acrobatics': '🤸',
+                  'animal-handling': '🐴',
+                  'medicine': '⚕️',
+                  'arcana': '🔮',
+                  'history': '📚',
+                  'nature': '🌿',
+                  'religion': '⛪',
+                  'athletics': '💪',
+                  'deception': '🎭',
+                  'intimidation': '😤',
+                  'performance': '🎪',
+                  'persuasion': '🗣️'
+                };
+                
+                const borderClass = skill.modifier > 5 
+                  ? (skill.expertise ? 'border-yellow-500' : 'border-purple-500') 
+                  : 'border-gray-600';
+                const textClass = skill.modifier > 5 
+                  ? (skill.expertise ? 'text-yellow-400' : 'text-purple-400') 
+                  : 'text-gray-400';
+                
+                return (
+                  <div key={skill.id} className={`flex justify-between items-center bg-gray-700 p-2 rounded-lg border ${borderClass}`}>
+                    <span className="font-semibold text-white text-sm">
+                      {skillEmojis[skill.id] || '🎯'} {skill.name}
+                      {skill.expertise && <span className="ml-1 text-yellow-400">★</span>}
+                      {skill.proficient && !skill.expertise && <span className="ml-1 text-purple-400">●</span>}
+                    </span>
+                    <span className={`font-bold ${textClass}`}>
+                      {skill.modifier > 0 ? `+${skill.modifier}` : skill.modifier}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
           
-          {/* Features */}
-          <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-red-600">
-            <h3 className="text-xl font-bold mb-4 text-red-300 flex items-center">
+          {/* Special Features */}
+          <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-gray-600">
+            <h3 className="text-xl font-bold mb-4 text-gray-300 flex items-center">
               <Sparkles className="mr-2" size={20} />
               Special Features
             </h3>
-            <div className="space-y-3 text-sm">
-              <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                <span className="font-bold text-red-400">⚔️ Sneak Attack:</span>
-                <span className="ml-2 text-white">+{character.sneakAttackDice}d6 damage</span>
+            <div className="space-y-4">
+              {/* Combat Section */}
+              <div>
+                <h4 className="text-lg font-semibold text-red-300 mb-3">Combat</h4>
+                <div className="space-y-3 text-sm">
+                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
+                    <span className="font-bold text-red-400">⚔️ Sneak Attack:</span>
+                    <span className="ml-2 text-white">+{character.sneakAttackDice}d6 damage when conditions met</span>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
+                    <span className="font-bold text-red-400">🏃 Cunning Action:</span>
+                    <span className="ml-2 text-white">Hide, Dash, or Disengage as bonus action</span>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
+                    <span className="font-bold text-red-400">🛡️ Uncanny Dodge:</span>
+                    <span className="ml-2 text-white">Use reaction to halve damage from one attack per turn</span>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
+                    <span className="font-bold text-red-400">⚡ Skirmisher:</span>
+                    <span className="ml-2 text-white">Move after attacking without provoking opportunity attacks</span>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
+                    <span className="font-bold text-red-400">🐍 Poison Spray:</span>
+                    <span className="ml-2 text-white">At-will cantrip: Con save or 1d12 poison damage (10 ft range)</span>
+                  </div>
+                </div>
               </div>
-              <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                <span className="font-bold text-red-400">🏃 Cunning Action:</span>
-                <span className="ml-2 text-white">Hide, Dash, Disengage as bonus action</span>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                <span className="font-bold text-red-400">🛡️ Uncanny Dodge:</span>
-                <span className="ml-2 text-white">Halve damage from one attack per turn</span>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                <span className="font-bold text-red-400">👁️ Darkvision:</span>
-                <span className="ml-2 text-white">See in darkness up to 60 feet</span>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                <span className="font-bold text-red-400">🧙‍♂️ Magic Resistance:</span>
-                <span className="ml-2 text-white">Advantage on magic saving throws</span>
+
+              {/* Story Section */}
+              <div>
+                <h4 className="text-lg font-semibold text-blue-300 mb-3">Story</h4>
+                <div className="space-y-3 text-sm">
+                  <div className="bg-gray-700 p-3 rounded-lg border border-blue-500">
+                    <span className="font-bold text-blue-400">🐍 Suggestion:</span>
+                    <span className="ml-2 text-white">1/long rest: Convince a creature to follow a brief, reasonable command you give them</span>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded-lg border border-blue-500">
+                    <span className="font-bold text-blue-400">🐴 Animal Friendship:</span>
+                    <span className="ml-2 text-white">At-will: Convince a beast to be friendly toward you and your allies instead of attacking</span>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded-lg border border-blue-500">
+                    <span className="font-bold text-blue-400">👂 Ear to the Ground:</span>
+                    <span className="ml-2 text-white">Advantage on Investigation to gather information in settlements</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
