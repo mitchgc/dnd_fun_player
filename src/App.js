@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Sword, Shield, User, Eye, EyeOff, Dice6, Target, Package, Heart, Sparkles, FileText } from 'lucide-react';
+import { Sword, Shield, User, Eye, EyeOff, Dice6, Target, Package, Heart, Sparkles } from 'lucide-react';
 
 const DnDCompanionApp = () => {
   // Character state
