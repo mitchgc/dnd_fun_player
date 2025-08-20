@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#3B82F6" />
+  <meta name="description" content="A beautiful, iPad-optimized D&D companion app for new players" />
+  
+  <!-- iPad specific optimizations -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="D&D Companion" />
+  <meta name="format-detection" content="telephone=no" />
+  
+  <!-- Prevent zoom and enable smooth scrolling -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  
+  <!-- Fun, playful font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <title>D&D Companion App 🎲</title>
+  
+  <style>
+    /* Prevent text selection and ensure smooth interactions on iPad */
+    * {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    
+    /* Allow text selection for certain elements */
+    input, textarea, [contenteditable] {
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      user-select: text;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #EBF8FF 0%, #F3E8FF 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    /* Ensure buttons are touch-friendly */
+    button {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Loading animation */
+    .loading-dice {
+      display: inline-block;
+      animation: bounce 1s infinite;
+      font-size: 3rem;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+  </style>
+</head>
+<body>
+  <noscript>
+    <div style="text-align: center; padding: 2rem; font-size: 1.2rem; color: #666;">
+      <div class="loading-dice">🎲</div>
+      <p>You need to enable JavaScript to use this D&D companion app!</p>
+    </div>
+  </noscript>
+  <div id="root">
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
+      <div class="loading-dice">🎲</div>
+      <p style="margin-top: 1rem; color: #666; font-size: 1.2rem;">Loading your D&D adventure...</p>
+    </div>
+  </div>
+</body>
+</html>
