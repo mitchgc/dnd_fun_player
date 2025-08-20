@@ -23,9 +23,22 @@ const DnDCompanionApp = () => {
     isOpen: false,
     searchTerm: '',
     selectedAction: null,
-    phase: 'search' // 'search' -> 'rolling' -> 'result' -> 'logs'
+    phase: 'search' // 'search' -> 'rolling' -> 'result' -> 'logs' -> 'damage-input' -> 'healing-input'
   });
   const [rollLogs, setRollLogs] = useState([]);
+  const [damageInput, setDamageInput] = useState({
+    amount: '',
+    selectedDefenses: [],
+    finalDamage: 0
+  });
+  const [healingInput, setHealingInput] = useState({
+    customAmount: '',
+    selectedHealing: null
+  });
+  const [hpEditing, setHpEditing] = useState(false);
+  const [hpEditValue, setHpEditValue] = useState('');
+  const [defensiveCollapsed, setDefensiveCollapsed] = useState(false);
+  const [turnCollapsed, setTurnCollapsed] = useState(false);
 
   // Character data - Enhanced for better gameplay
   const character = {
@@ -72,6 +85,30 @@ const DnDCompanionApp = () => {
       bonds: "Soft spot for animals",
       flaws: "Sneeze in bright light",
       appearance: "Half human, half snake, scales covered by a shawl. 5'7\", 160 lbs."
+    },
+    defensiveAbilities: {
+      'uncanny-dodge': { 
+        name: 'Uncanny Dodge', 
+        description: 'Halve damage from one attack per turn', 
+        icon: '🛡️', 
+        usesPerTurn: 1, 
+        available: true,
+        effect: 'halve'
+      },
+      'magic-resistance': { 
+        name: 'Magic Resistance', 
+        description: 'Advantage on saving throws vs magic', 
+        icon: '🧙‍♂️', 
+        passive: true,
+        effect: 'advantage'
+      },
+      'poison-resistance': { 
+        name: 'Poison Resistance', 
+        description: 'Halve poison damage', 
+        icon: '☠️', 
+        passive: true,
+        effect: 'resist-poison'
+      }
     }
   };
 
@@ -440,6 +477,13 @@ const DnDCompanionApp = () => {
       { id: 'death-save', name: 'Death Saving Throw', modifier: 0, type: 'death-save' },
       { id: 'concentration', name: 'Concentration Save', modifier: abilityMods.con, type: 'concentration' }
     ].sort((a, b) => b.modifier - a.modifier),
+    healing: [
+      { id: 'short-rest', name: 'Short Rest Healing (1 hour)', modifier: 0, type: 'healing', healType: 'short-rest', dice: '3d8', description: 'Roll Hit Dice to recover HP' },
+      { id: 'long-rest', name: 'Long Rest Healing (8 hours)', modifier: 0, type: 'healing', healType: 'long-rest', description: 'Recover all HP and reset abilities' },
+      { id: 'superior-potion', name: 'Superior Healing Potion', modifier: 0, type: 'healing', healType: 'potion', dice: '8d4+8', description: 'Roll 8d4+8 healing' },
+      { id: 'basic-potion', name: 'Basic Healing Potion', modifier: 0, type: 'healing', healType: 'potion', dice: '2d4+2', description: 'Roll 2d4+2 healing' },
+      { id: 'custom-healing', name: 'Custom Healing', modifier: 0, type: 'healing', healType: 'custom', description: 'Enter custom healing amount' }
+    ],
     utility: [
       { id: 'd100', name: 'Percentile (d100)', modifier: 0, type: 'raw', dice: 100 },
       { id: 'd20', name: 'Raw d20', modifier: 0, type: 'raw' },
@@ -468,12 +512,29 @@ const DnDCompanionApp = () => {
 
   // Open roll popup
   const openRollPopup = (searchTerm = '', selectedAction = null) => {
-    setRollPopup({
-      isOpen: true,
-      searchTerm,
-      selectedAction,
-      phase: selectedAction ? 'rolling' : 'search'
-    });
+    if (selectedAction && selectedAction.type === 'damage-input') {
+      setRollPopup({
+        isOpen: true,
+        searchTerm: '',
+        selectedAction,
+        phase: 'damage-input'
+      });
+      setDamageInput({ amount: '', selectedDefenses: [], finalDamage: 0 });
+    } else if (searchTerm === 'heal') {
+      setRollPopup({
+        isOpen: true,
+        searchTerm: 'heal',
+        selectedAction: null,
+        phase: 'search'
+      });
+    } else {
+      setRollPopup({
+        isOpen: true,
+        searchTerm,
+        selectedAction,
+        phase: selectedAction ? 'rolling' : 'search'
+      });
+    }
   };
 
   // Close roll popup
@@ -591,6 +652,114 @@ const DnDCompanionApp = () => {
                 critFail: roll === 1
               }
             });
+          } else if (action.type === 'healing') {
+            // Handle healing rolls
+            let healingAmount = 0;
+            
+            if (action.healType === 'long-rest') {
+              // Long rest - full heal and reset abilities
+              healingAmount = character.maxHP - currentHP;
+              result = {
+                type: 'healing',
+                name: action.name,
+                healingAmount,
+                healType: 'long-rest',
+                description: 'Fully restored HP and reset all abilities'
+              };
+              
+              // Apply healing
+              setCurrentHP(character.maxHP);
+              
+              // Reset turn abilities (if needed)
+              // Reset Uncanny Dodge availability
+              // This would be handled in a real implementation
+              
+            } else if (action.healType === 'short-rest') {
+              // Short rest - roll hit dice (3d8 for level 5 rogue)
+              let hitDiceRolls = [];
+              for (let i = 0; i < 3; i++) {
+                const roll = rollDice(8);
+                hitDiceRolls.push(roll);
+                healingAmount += roll;
+              }
+              
+              result = {
+                type: 'healing',
+                name: action.name,
+                healingAmount,
+                healType: 'short-rest',
+                hitDiceRolls,
+                description: `Rolled ${hitDiceRolls.join(', ')} on 3d8`
+              };
+              
+              // Apply healing
+              setCurrentHP(prev => Math.min(character.maxHP, prev + healingAmount));
+              
+            } else if (action.healType === 'potion') {
+              // Roll potion dice
+              let potionRolls = [];
+              
+              if (action.id === 'superior-potion') {
+                // 8d4+8
+                for (let i = 0; i < 8; i++) {
+                  const roll = rollDice(4);
+                  potionRolls.push(roll);
+                  healingAmount += roll;
+                }
+                healingAmount += 8; // +8 bonus
+              } else if (action.id === 'basic-potion') {
+                // 2d4+2
+                for (let i = 0; i < 2; i++) {
+                  const roll = rollDice(4);
+                  potionRolls.push(roll);
+                  healingAmount += roll;
+                }
+                healingAmount += 2; // +2 bonus
+              }
+              
+              result = {
+                type: 'healing',
+                name: action.name,
+                healingAmount,
+                healType: 'potion',
+                potionRolls,
+                description: `Rolled ${potionRolls.join(', ')} ${action.id === 'superior-potion' ? '+8' : '+2'}`
+              };
+              
+              // Apply healing
+              setCurrentHP(prev => Math.min(character.maxHP, prev + healingAmount));
+              
+            } else if (action.healType === 'custom') {
+              // Custom healing - this will be handled differently
+              // For now, just show the custom input
+              result = {
+                type: 'healing',
+                name: action.name,
+                healType: 'custom',
+                needsInput: true,
+                description: 'Enter healing amount'
+              };
+            }
+
+            // Log the healing
+            if (action.healType !== 'custom') {
+              logRoll({
+                type: 'healing',
+                name: action.name,
+                dice: [{
+                  name: 'Healing',
+                  dice: result.hitDiceRolls ? result.hitDiceRolls.map((r, i) => `d8: ${r}`) : 
+                        result.potionRolls ? result.potionRolls.map((r, i) => `d4: ${r}`) : 
+                        ['Full Rest'],
+                  bonus: action.id === 'superior-potion' ? 8 : action.id === 'basic-potion' ? 2 : 0,
+                  total: healingAmount
+                }],
+                details: {
+                  healType: action.healType,
+                  finalHP: action.healType === 'long-rest' ? character.maxHP : Math.min(character.maxHP, currentHP + healingAmount)
+                }
+              });
+            }
           } else {
             // Handle skill checks, ability checks, saves, etc.
             const total = roll + action.modifier;
@@ -678,21 +847,29 @@ const DnDCompanionApp = () => {
   // Main Battle Interface
   const BattleInterface = () => (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Character Status Card */}
-      <div className={`rounded-2xl shadow-xl p-6 border-2 transition-all duration-1000 ${
+      {/* Defensive Area */}
+      <div className={`rounded-2xl shadow-xl border-2 transition-all duration-1000 ${
         isHidden 
           ? 'bg-gradient-to-r from-gray-800 to-purple-900 border-purple-600'
           : 'bg-gradient-to-r from-gray-900 to-gray-800 border-gray-600'
       }`}>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-white flex items-center">
-              {character.name}
-              <Sparkles className={`ml-2 transition-colors duration-1000 ${
-                isHidden ? 'text-purple-400' : 'text-yellow-500'
-              }`} size={24} />
-            </h2>
-            <p className="text-gray-300 font-medium">{character.race} {character.class}</p>
+        <div 
+          className="flex items-center justify-between p-6 border-b border-gray-700 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          onClick={() => setDefensiveCollapsed(!defensiveCollapsed)}
+        >
+          <div className="flex items-center">
+            <Shield className={`mr-3 transition-colors duration-1000 ${
+              isHidden ? 'text-purple-400' : 'text-blue-400'
+            }`} size={32} />
+            <div>
+              <h2 className="text-3xl font-bold text-white flex items-center">
+                Defensive
+                <Sparkles className={`ml-2 transition-colors duration-1000 ${
+                  isHidden ? 'text-purple-400' : 'text-yellow-500'
+                }`} size={24} />
+              </h2>
+              <p className="text-gray-300 font-medium">{character.name} - {character.race} {character.class}</p>
+            </div>
           </div>
           <div className="flex items-center space-x-3">
             {isHidden && (
@@ -701,58 +878,188 @@ const DnDCompanionApp = () => {
                 <span>Hidden</span>
               </span>
             )}
+            <div className={`transform transition-transform duration-300 ${
+              defensiveCollapsed ? 'rotate-180' : ''
+            }`}>
+              ▼
+            </div>
           </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-6">
-          <div className="text-center bg-gray-800 p-4 rounded-xl border-2 border-red-500">
-            <div className="flex items-center justify-center mb-2">
-              <Heart className="text-red-400" size={20} />
-              <p className="text-sm text-red-300 ml-2 font-semibold">HEALTH</p>
+{!defensiveCollapsed && (
+          <div className="space-y-4 p-6">
+            {/* Defensive Stats in Rows */}
+            <div className="space-y-4">
+              {/* Health Row */}
+              <div className="bg-gray-800 p-4 rounded-xl border-2 border-green-500 relative overflow-hidden">
+                {/* Health percentage bar background */}
+                <div 
+                  className="absolute inset-0 bg-green-500/10 transition-all duration-500"
+                  style={{ width: `${(currentHP / character.maxHP) * 100}%` }}
+                ></div>
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Heart className="text-green-400 mr-3" size={24} />
+                    <span className="text-lg font-bold text-white">Health</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    {hpEditing ? (
+                      <input
+                        type="number"
+                        value={hpEditValue}
+                        onChange={(e) => setHpEditValue(e.target.value)}
+                        onBlur={() => {
+                          const newHP = Math.max(0, Math.min(character.maxHP, parseInt(hpEditValue) || 0));
+                          setCurrentHP(newHP);
+                          setHpEditing(false);
+                          setHpEditValue('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const newHP = Math.max(0, Math.min(character.maxHP, parseInt(hpEditValue) || 0));
+                            setCurrentHP(newHP);
+                            setHpEditing(false);
+                            setHpEditValue('');
+                          } else if (e.key === 'Escape') {
+                            setHpEditing(false);
+                            setHpEditValue('');
+                          }
+                        }}
+                        className="text-2xl font-bold text-green-400 bg-transparent border border-green-400 rounded px-2 py-1 w-20 text-center"
+                        autoFocus
+                        placeholder={currentHP.toString()}
+                      />
+                    ) : (
+                      <span 
+                        onClick={() => {
+                          setHpEditing(true);
+                          setHpEditValue(currentHP.toString());
+                        }}
+                        className="text-2xl font-bold text-green-400 cursor-pointer hover:bg-gray-700 rounded px-2 py-1 transition-colors"
+                        title="Click to edit HP directly"
+                      >
+                        {currentHP}/{character.maxHP}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Armor Row */}
+              <div className="bg-gray-800 p-4 rounded-xl border-2 border-blue-400">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Shield className="text-blue-400 mr-3" size={24} />
+                    <span className="text-lg font-bold text-white">Armor Class</span>
+                  </div>
+                  <span className="text-2xl font-bold text-blue-400">{character.ac}</span>
+                </div>
+              </div>
+
+              {/* Resistances/Defensive Abilities */}
+              <div className="bg-gray-800 p-4 rounded-xl border-2 border-purple-500">
+                <div className="flex items-center mb-3">
+                  <Shield className="text-purple-400 mr-3" size={24} />
+                  <span className="text-lg font-bold text-white">Defensive Abilities</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(character.defensiveAbilities).map(([key, ability]) => (
+                    <div 
+                      key={key}
+                      className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${
+                        ability.available !== false
+                          ? 'bg-gray-700 border-gray-600 text-white'
+                          : 'bg-gray-700 border-gray-600 text-gray-400'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <span className="text-xl mr-3">{ability.icon}</span>
+                        <div>
+                          <span className="font-medium">{ability.name}</span>
+                          <p className="text-sm text-gray-300">{ability.description}</p>
+                        </div>
+                      </div>
+                      {key === 'uncanny-dodge' && ability.available !== false && (
+                        <span className="text-xs bg-green-600 text-green-200 px-2 py-1 rounded">
+                          Available
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="text-3xl font-bold text-red-400">{currentHP}/{character.maxHP}</p>
-            <div className="flex justify-center space-x-2 mt-3">
+
+            {/* Action Buttons at Bottom */}
+            <div className="flex justify-center space-x-4 pt-4">
               <button 
-                onClick={() => adjustHP(-1)}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm transition-all transform hover:scale-110"
+                onClick={() => openRollPopup('heal')}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
               >
-                -1
+                <Sparkles className="mr-2" size={20} />
+                Heal
               </button>
               <button 
-                onClick={() => adjustHP(1)}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-3 rounded-lg text-sm transition-all transform hover:scale-110"
+                onClick={() => openRollPopup('', { type: 'damage-input' })}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
               >
-                +1
+                <Heart className="mr-2" size={20} />
+                Take Damage
               </button>
             </div>
           </div>
-          <div className="text-center bg-gray-800 p-4 rounded-xl border-2 border-blue-400">
-            <div className="flex items-center justify-center mb-2">
-              <Shield className="text-blue-400" size={20} />
-              <p className="text-sm text-blue-300 ml-2 font-semibold">ARMOR</p>
-            </div>
-            <p className="text-3xl font-bold text-blue-400">{character.ac}</p>
-            <p className="text-xs text-blue-300 mt-1">Armor Class</p>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Action Economy Interface */}
-      <div className="space-y-4">
-        {/* Action Section */}
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-red-600">
+      {/* Action Economy Interface - Your Turn */}
+      <div className={`rounded-2xl shadow-xl border-2 transition-all duration-1000 ${
+        isHidden 
+          ? 'bg-gradient-to-r from-gray-800 to-purple-900 border-purple-600'
+          : 'bg-gradient-to-r from-gray-900 to-gray-800 border-gray-600'
+      }`}>
+        <div 
+          className="flex items-center justify-between p-6 border-b border-gray-700 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          onClick={() => setTurnCollapsed(!turnCollapsed)}
+        >
+          <div className="flex items-center">
+            <Sword className={`mr-3 transition-colors duration-1000 ${
+              isHidden ? 'text-purple-400' : 'text-red-400'
+            }`} size={32} />
+            <div>
+              <h2 className="text-3xl font-bold text-white flex items-center">
+                Your Turn
+                <Sparkles className={`ml-2 transition-colors duration-1000 ${
+                  isHidden ? 'text-purple-400' : 'text-yellow-500'
+                }`} size={24} />
+              </h2>
+              <p className="text-gray-300 font-medium">Actions, Bonus Actions & Movement</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <div className={`transform transition-transform duration-300 ${
+              turnCollapsed ? 'rotate-180' : ''
+            }`}>
+              ▼
+            </div>
+          </div>
+        </div>
+
+        {!turnCollapsed && (
+          <div className="space-y-6 p-6">
+            {/* Action Section */}
+            <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-red-600">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white flex items-center">
               <Sword className="mr-3 text-red-400" size={24} />
               Action
             </h3>
-            <span className={`px-4 py-2 rounded-xl text-sm font-bold ${
+            <div className={`px-3 py-1 rounded-lg text-sm font-medium border ${
               turnState.actionUsed 
-                ? 'bg-red-600 text-white' 
-                : 'bg-green-600 text-white'
+                ? 'bg-red-900/30 border-red-600 text-red-300' 
+                : 'bg-green-900/30 border-green-600 text-green-300'
             }`}>
               {turnState.actionUsed ? 'Used' : '1 Available'}
-            </span>
+            </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -792,20 +1099,20 @@ const DnDCompanionApp = () => {
           </div>
         </div>
 
-        {/* Bonus Action Section */}
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-purple-600">
+            {/* Bonus Action Section */}
+            <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-purple-600">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white flex items-center">
               <Sparkles className="mr-3 text-purple-400" size={24} />
               Bonus Action
             </h3>
-            <span className={`px-4 py-2 rounded-xl text-sm font-bold ${
+            <div className={`px-3 py-1 rounded-lg text-sm font-medium border ${
               turnState.bonusActionUsed 
-                ? 'bg-red-600 text-white' 
-                : 'bg-green-600 text-white'
+                ? 'bg-red-900/30 border-red-600 text-red-300' 
+                : 'bg-green-900/30 border-green-600 text-green-300'
             }`}>
               {turnState.bonusActionUsed ? 'Used' : '1 Available'}
-            </span>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -881,13 +1188,13 @@ const DnDCompanionApp = () => {
           </div>
         </div>
 
-        {/* Movement Section */}
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-yellow-600">
+            {/* Movement Section */}
+            <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-yellow-600">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white">🏃‍♂️ Movement</h3>
-            <span className="px-4 py-2 rounded-xl text-sm font-bold bg-yellow-600 text-white">
+            <div className="px-3 py-1 rounded-lg text-sm font-medium border bg-yellow-900/30 border-yellow-600 text-yellow-300">
               {30 - turnState.movementUsed} ft remaining
-            </span>
+            </div>
           </div>
           
           <div className="bg-gray-800 rounded-xl p-4 border border-yellow-600">
@@ -897,15 +1204,17 @@ const DnDCompanionApp = () => {
           </div>
         </div>
 
-        {/* End Turn Controls */}
-        <div className="text-center space-y-3">
-          <button
-            onClick={resetTurn}
-            className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg border border-gray-600"
-          >
-            🔄 End Turn
-          </button>
-        </div>
+            {/* End Turn Controls */}
+            <div className="text-center space-y-3 pt-4">
+              <button
+                onClick={resetTurn}
+                className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg border border-gray-600"
+              >
+                🔄 End Turn
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
@@ -1210,6 +1519,7 @@ const DnDCompanionApp = () => {
                     abilities: 'Ability Checks',
                     saves: 'Saving Throws',
                     combat: 'Combat',
+                    healing: 'Healing',
                     utility: 'Utility'
                   };
                   const categoryColors = {
@@ -1218,6 +1528,7 @@ const DnDCompanionApp = () => {
                     abilities: 'bg-green-600 text-green-200',
                     saves: 'bg-purple-600 text-purple-200',
                     combat: 'bg-yellow-600 text-yellow-200',
+                    healing: 'bg-green-600 text-green-200',
                     utility: 'bg-gray-600 text-gray-200'
                   };
                   
@@ -1280,6 +1591,181 @@ const DnDCompanionApp = () => {
                     }`}
                   >
                     Previous Rolls
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {rollPopup.phase === 'damage-input' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white">Take Damage</h2>
+                  <button
+                    onClick={closeRollPopup}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      DM announces damage:
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Enter damage amount..."
+                      value={damageInput.amount}
+                      onChange={(e) => {
+                        const amount = parseInt(e.target.value) || 0;
+                        let finalDamage = amount;
+                        
+                        // Apply defensive abilities
+                        if (damageInput.selectedDefenses.includes('uncanny-dodge')) {
+                          finalDamage = Math.floor(finalDamage / 2);
+                        }
+                        if (damageInput.selectedDefenses.includes('poison-resistance') && amount > 0) {
+                          // Assume poison damage for demo - in real app would need damage type
+                          finalDamage = Math.floor(finalDamage / 2);
+                        }
+                        
+                        setDamageInput(prev => ({
+                          ...prev,
+                          amount: e.target.value,
+                          finalDamage
+                        }));
+                      }}
+                      className="w-full p-3 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:border-red-500 focus:outline-none text-lg"
+                      autoFocus
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Defensive Abilities:
+                    </label>
+                    <div className="space-y-2">
+                      {Object.entries(character.defensiveAbilities).map(([key, ability]) => {
+                        const isSelected = damageInput.selectedDefenses.includes(key);
+                        const isAvailable = ability.available !== false;
+                        
+                        return (
+                          <button
+                            key={key}
+                            disabled={!isAvailable}
+                            onClick={() => {
+                              let newDefenses;
+                              if (isSelected) {
+                                newDefenses = damageInput.selectedDefenses.filter(d => d !== key);
+                              } else {
+                                newDefenses = [...damageInput.selectedDefenses, key];
+                              }
+                              
+                              let finalDamage = parseInt(damageInput.amount) || 0;
+                              
+                              // Apply defensive abilities
+                              if (newDefenses.includes('uncanny-dodge')) {
+                                finalDamage = Math.floor(finalDamage / 2);
+                              }
+                              if (newDefenses.includes('poison-resistance')) {
+                                finalDamage = Math.floor(finalDamage / 2);
+                              }
+                              
+                              setDamageInput(prev => ({
+                                ...prev,
+                                selectedDefenses: newDefenses,
+                                finalDamage
+                              }));
+                            }}
+                            className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
+                              !isAvailable 
+                                ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
+                                : isSelected
+                                  ? 'bg-blue-600 border-blue-500 text-white'
+                                  : 'bg-gray-700 border-gray-600 text-white hover:border-blue-500 hover:bg-gray-600'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <span className="text-2xl">{ability.icon}</span>
+                              <div>
+                                <div className="font-semibold">{ability.name}</div>
+                                <div className="text-sm text-gray-300">{ability.description}</div>
+                                {key === 'uncanny-dodge' && !isAvailable && (
+                                  <div className="text-xs text-red-400">Already used this turn</div>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {damageInput.amount && (
+                    <div className="bg-gray-800 p-4 rounded-lg border border-gray-600">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">Original damage:</span>
+                        <span className="text-red-400 font-bold">{damageInput.amount}</span>
+                      </div>
+                      {damageInput.selectedDefenses.length > 0 && (
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-gray-300">After defenses:</span>
+                          <span className="text-orange-400 font-bold">{damageInput.finalDamage}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-600">
+                        <span className="text-white font-semibold">Final HP:</span>
+                        <span className={`font-bold text-lg ${
+                          currentHP - damageInput.finalDamage <= 0 ? 'text-red-400' : 'text-green-400'
+                        }`}>
+                          {Math.max(0, currentHP - damageInput.finalDamage)}/{character.maxHP}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={() => {
+                      if (damageInput.amount) {
+                        // Apply damage
+                        const finalDamage = damageInput.finalDamage;
+                        setCurrentHP(prev => Math.max(0, prev - finalDamage));
+                        
+                        // Use up Uncanny Dodge if selected
+                        if (damageInput.selectedDefenses.includes('uncanny-dodge')) {
+                          // In a full implementation, would track per-turn usage
+                        }
+                        
+                        // Log the damage taken
+                        logRoll({
+                          type: 'damage',
+                          name: 'Damage Taken',
+                          dice: [{
+                            name: 'Damage',
+                            dice: [`${damageInput.amount} damage`],
+                            bonus: 0,
+                            total: finalDamage
+                          }],
+                          details: {
+                            originalDamage: parseInt(damageInput.amount),
+                            finalDamage: finalDamage,
+                            defenses: damageInput.selectedDefenses,
+                            finalHP: Math.max(0, currentHP - finalDamage)
+                          }
+                        });
+                        
+                        closeRollPopup();
+                      }
+                    }}
+                    disabled={!damageInput.amount}
+                    className={`w-full p-3 rounded-lg font-bold transition-colors ${
+                      damageInput.amount
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Apply Damage
                   </button>
                 </div>
               </div>
@@ -1399,6 +1885,36 @@ const DnDCompanionApp = () => {
                           </div>
                         </div>
                       </div>
+                    ) : rollPopup.result.type === 'healing' ? (
+                      <div className="space-y-3">
+                        <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Heart className="text-green-400" size={16} />
+                              <span className="text-white font-medium">Healing</span>
+                            </div>
+                            <span className="text-2xl font-bold text-green-400">
+                              +{rollPopup.result.healingAmount || 'Full'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {rollPopup.result.description && (
+                          <div className="text-sm text-gray-300 bg-gray-800 p-2 rounded">
+                            {rollPopup.result.description}
+                          </div>
+                        )}
+                        
+                        <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
+                          <div className="flex items-center justify-between">
+                            <span className="text-white font-medium">New HP:</span>
+                            <span className="text-2xl font-bold text-green-400">
+                              {rollPopup.result.healType === 'long-rest' ? character.maxHP : 
+                               Math.min(character.maxHP, currentHP + (rollPopup.result.healingAmount || 0))}/{character.maxHP}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div 
                         className="group cursor-help relative"
@@ -1488,6 +2004,8 @@ const DnDCompanionApp = () => {
                               {log.type === 'save' && <Heart className="text-yellow-400" size={16} />}
                               {log.type === 'raw' && <Dice6 className="text-gray-400" size={16} />}
                               {log.type === 'death-save' && <Heart className="text-red-400" size={16} />}
+                              {log.type === 'healing' && <Heart className="text-green-400" size={16} />}
+                              {log.type === 'damage' && <Heart className="text-red-400" size={16} />}
                               <div className="flex flex-col">
                                 <span className="font-medium text-white text-sm">{log.name}</span>
                                 <span className="text-xs text-gray-400">
