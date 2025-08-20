@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Sword, Shield, User, Eye, EyeOff, Dice6, Target, Package, Heart, Sparkles } from 'lucide-react';
+import { Sword, Shield, User, Eye, EyeOff, Dice6, Target, Package, Heart, Sparkles, FileText } from 'lucide-react';
 
 const DnDCompanionApp = () => {
   // Character state
@@ -25,6 +25,7 @@ const DnDCompanionApp = () => {
     selectedAction: null,
     phase: 'search' // 'search' -> 'rolling' -> 'result'
   });
+  const [rollLogs, setRollLogs] = useState([]);
 
   // Character data - Enhanced for better gameplay
   const character = {
@@ -76,6 +77,13 @@ const DnDCompanionApp = () => {
 
   // Utility functions
   const rollDice = useCallback((sides) => Math.floor(Math.random() * sides) + 1, []);
+
+  // Log roll function
+  const logRoll = useCallback((logEntry) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = { ...logEntry, timestamp, id: Date.now() };
+    setRollLogs(prev => [entry, ...prev]); // Add to beginning for newest first
+  }, []);
 
   const toggleSection = useCallback((section) => {
     setExpandedSections(prev => ({
@@ -185,7 +193,7 @@ const DnDCompanionApp = () => {
     
     totalDamage = baseDamageRoll + sneakAttackTotal;
     
-    return {
+    const result = {
       attackRoll,
       advantageRolls,
       totalAttack,
@@ -197,7 +205,42 @@ const DnDCompanionApp = () => {
       weaponDiceSize: weapon.damage.includes('d8') ? 8 : 6,
       isCritical
     };
-  }, [selectedWeapon, isHidden, character.weapons, character.sneakAttackDice, rollDice]);
+
+    // Log the attack roll details
+    logRoll({
+      type: 'attack',
+      name: `${weapon.name} Attack`,
+      dice: [
+        { 
+          name: 'Attack Roll', 
+          dice: advantageRolls ? [`d20: ${advantageRolls[0]}`, `d20: ${advantageRolls[1]}`] : [`d20: ${attackRoll}`],
+          bonus: weapon.attack,
+          total: totalAttack,
+          advantage: !!advantageRolls
+        },
+        {
+          name: 'Damage Roll',
+          dice: [
+            `d${weapon.damage.includes('d8') ? 8 : 6}: ${baseDamageRoll - 3}${isCritical ? ' (doubled for crit)' : ''}`
+          ].concat(
+            sneakAttackRolls.length > 0 ? 
+              sneakAttackRolls.map((roll, i) => `d6: ${roll} (sneak attack${i >= character.sneakAttackDice && isCritical ? ' crit' : ''})`) 
+              : []
+          ),
+          bonus: 3, // DEX modifier
+          total: totalDamage
+        }
+      ],
+      isCritical,
+      details: {
+        advantage: !!advantageRolls,
+        sneakAttack: sneakAttackRolls.length > 0,
+        weapon: weapon.name
+      }
+    });
+
+    return result;
+  }, [selectedWeapon, isHidden, character.weapons, character.sneakAttackDice, rollDice, logRoll]);
 
   // Enhanced Attack Result Component with better animations
   const AttackResult = ({ result }) => (
@@ -474,11 +517,16 @@ const DnDCompanionApp = () => {
     if (action.type === 'attack') {
       // Handle weapon attacks
       const weaponKey = action.id.includes('rapier') ? 'rapier' : 'shortbow';
-      result = rollAttack();
+      const attackResult = rollAttack();
+      result = {
+        ...attackResult,
+        type: 'attack',
+        name: action.name
+      };
       
       // Use action if it's an attack
       useAction();
-      setLastAttackResult(result);
+      setLastAttackResult(attackResult);
       setExpandedSections({ attackRoll: false, totalDamage: false });
       
       if (isHidden) {
@@ -494,6 +542,23 @@ const DnDCompanionApp = () => {
         total: roll,
         dice: `1d${diceSize}`
       };
+
+      // Log the raw dice roll
+      logRoll({
+        type: 'raw',
+        name: action.name,
+        dice: [{
+          name: 'Raw Roll',
+          dice: [`d${diceSize}: ${roll}`],
+          bonus: 0,
+          total: roll
+        }],
+        details: {
+          diceSize,
+          critSuccess: roll === diceSize,
+          critFail: roll === 1
+        }
+      });
     } else if (action.type === 'death-save') {
       // Death saves (special handling)
       const total = roll;
@@ -508,6 +573,23 @@ const DnDCompanionApp = () => {
         critSuccess: roll === 20,
         critFail: roll === 1
       };
+
+      // Log the death save
+      logRoll({
+        type: 'death-save',
+        name: action.name,
+        dice: [{
+          name: 'Death Save',
+          dice: [`d20: ${roll}`],
+          bonus: 0,
+          total: roll
+        }],
+        details: {
+          success: roll >= 10,
+          critSuccess: roll === 20,
+          critFail: roll === 1
+        }
+      });
     } else {
       // Handle skill checks, ability checks, saves, etc.
       const total = roll + action.modifier;
@@ -521,6 +603,25 @@ const DnDCompanionApp = () => {
         proficient: action.proficient,
         expertise: action.expertise
       };
+
+      // Log the skill/ability check details
+      logRoll({
+        type: action.type,
+        name: action.name,
+        dice: [{
+          name: action.name,
+          dice: [`d${diceSize}: ${roll}`],
+          bonus: action.modifier,
+          total,
+          proficient: action.proficient,
+          expertise: action.expertise
+        }],
+        details: {
+          proficient: action.proficient,
+          expertise: action.expertise,
+          diceSize
+        }
+      });
       
       // Special handling for initiative
       if (action.id === 'initiative') {
@@ -824,6 +925,116 @@ const DnDCompanionApp = () => {
     </div>
   );
 
+  // Logs Page
+  const LogsPage = () => (
+    <div className="p-4 md:p-6 space-y-6">
+      <div className={`rounded-2xl shadow-xl p-6 border-2 transition-all duration-1000 ${
+        isHidden 
+          ? 'bg-gradient-to-r from-gray-800 to-purple-900 border-purple-600'
+          : 'bg-gradient-to-r from-gray-900 to-gray-800 border-gray-600'
+      }`}>
+        <h2 className="text-3xl font-bold text-white mb-6 flex items-center">
+          <FileText className={`mr-3 transition-colors duration-1000 ${isHidden ? 'text-purple-400' : 'text-blue-400'}`} size={32} />
+          Roll History
+        </h2>
+        
+        {rollLogs.length === 0 ? (
+          <div className="text-center py-12">
+            <Dice6 className="mx-auto text-gray-400 mb-4" size={48} />
+            <p className="text-gray-400 text-lg">No rolls yet. Start rolling to see your history!</p>
+          </div>
+        ) : (
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {rollLogs.map((log) => (
+              <div key={log.id} className={`rounded-xl border-2 overflow-hidden transition-all duration-300 ${
+                isHidden 
+                  ? 'bg-gray-800 border-purple-700'
+                  : 'bg-gray-800 border-gray-600'
+              }`}>
+                <div className={`p-4 border-b ${isHidden ? 'border-purple-700' : 'border-gray-600'}`}>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-3">
+                      {log.type === 'attack' && <Target className="text-red-400" size={20} />}
+                      {log.type === 'skill' && <Eye className="text-green-400" size={20} />}
+                      {log.type === 'ability' && <Shield className="text-blue-400" size={20} />}
+                      {log.type === 'save' && <Heart className="text-yellow-400" size={20} />}
+                      {log.type === 'raw' && <Dice6 className="text-gray-400" size={20} />}
+                      {log.type === 'death-save' && <Heart className="text-red-400" size={20} />}
+                      <span className="font-bold text-white text-lg">{log.name}</span>
+                      {log.isCritical && <Sparkles className="text-yellow-400 animate-pulse" size={16} />}
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm text-gray-400">{log.timestamp}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 space-y-3">
+                  {log.dice.map((diceGroup, index) => (
+                    <div key={index} className="space-y-2">
+                      <h4 className="font-semibold text-white flex items-center">
+                        <Dice6 className="mr-2" size={16} />
+                        {diceGroup.name}
+                        {diceGroup.advantage && <span className="ml-2 text-purple-300 text-sm">(Advantage)</span>}
+                      </h4>
+                      <div className="ml-6 space-y-1">
+                        <div className="flex flex-wrap gap-2">
+                          {diceGroup.dice.map((die, dieIndex) => (
+                            <span key={dieIndex} className="bg-gray-700 px-3 py-1 rounded text-sm font-mono">
+                              {die}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="text-sm text-gray-300">
+                          {diceGroup.bonus > 0 && (
+                            <>
+                              <span>+ {diceGroup.bonus}</span>
+                              {diceGroup.proficient && <span className="ml-2 text-blue-300">(Proficient)</span>}
+                              {diceGroup.expertise && <span className="ml-2 text-purple-300">(Expertise)</span>}
+                            </>
+                          )}
+                          <span className="ml-4 font-bold text-white">= {diceGroup.total}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Additional details for specific roll types */}
+                  {log.details && (
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <div className="text-xs text-gray-400 space-y-1">
+                        {log.details.advantage && <p>✨ Rolled with advantage</p>}
+                        {log.details.sneakAttack && <p>🗡️ Sneak attack triggered</p>}
+                        {log.details.success !== undefined && (
+                          <p className={log.details.success ? 'text-green-400' : 'text-red-400'}>
+                            {log.details.success ? '✅ Success' : '❌ Failure'}
+                          </p>
+                        )}
+                        {log.details.critSuccess && <p className="text-yellow-400">🎯 Critical Success!</p>}
+                        {log.details.critFail && <p className="text-red-400">💥 Critical Failure!</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {rollLogs.length > 0 && (
+          <div className="mt-6 text-center">
+            <button 
+              onClick={() => setRollLogs([])}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl transition-colors duration-300"
+            >
+              Clear Log History
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   // Enhanced Stats Page
   const StatsPage = () => (
     <div className="p-4 md:p-6 space-y-6">
@@ -1026,6 +1237,21 @@ const DnDCompanionApp = () => {
               <span className="text-lg">Stats</span>
             </button>
             <button
+              onClick={() => setActiveTab('logs')}
+              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
+                activeTab === 'logs'
+                  ? isHidden 
+                    ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
+                    : 'text-blue-400 border-b-4 border-blue-400 bg-gray-700'
+                  : isHidden
+                    ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-t-lg'
+                    : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700 rounded-t-lg'
+              }`}
+            >
+              <FileText size={24} />
+              <span className="text-lg">Logs</span>
+            </button>
+            <button
               onClick={() => setActiveTab('backstory')}
               className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
                 activeTab === 'backstory'
@@ -1048,6 +1274,7 @@ const DnDCompanionApp = () => {
       <div className="max-w-6xl mx-auto">
         {activeTab === 'battle' && <BattleInterface />}
         {activeTab === 'stats' && <StatsPage />}
+        {activeTab === 'logs' && <LogsPage />}
         {activeTab === 'backstory' && <BackstoryPage />}
       </div>
 
