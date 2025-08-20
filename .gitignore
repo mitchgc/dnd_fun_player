@@ -5,6 +5,8 @@
 
 # Testing
 /coverage
+.playright.mcp
+.claude
 
 # Production
 /build

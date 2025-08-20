@@ -508,11 +508,10 @@ const DnDCompanionApp = () => {
   const performPopupRoll = async (action) => {
     try {
       // Rolling phase (2 seconds)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      let result;
-      const diceSize = action.dice || 20;
-      const roll = rollDice(diceSize);
+      setTimeout(async () => {
+        let result;
+        const diceSize = action.dice || 20;
+        const roll = rollDice(diceSize);
     
     if (action.type === 'attack') {
       // Handle weapon attacks
@@ -1153,25 +1152,55 @@ const DnDCompanionApp = () => {
       </div>
 
       {/* Floating Roll Button */}
-      <button
+      <svg 
         onClick={() => openRollPopup()}
-        className={`fixed bottom-6 right-6 w-20 h-20 rounded-2xl shadow-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 border-4 ${
+        width="96" 
+        height="96" 
+        viewBox="0 0 24 24" 
+        className={`fixed bottom-6 right-6 cursor-pointer transition-all duration-300 transform hover:scale-110 active:scale-95 ${
           isHidden 
-            ? 'bg-gradient-to-br from-purple-600 to-purple-800 text-white border-purple-400 shadow-purple-500/50'
-            : 'bg-gradient-to-br from-blue-600 to-blue-800 text-white border-blue-400 hover:from-blue-700 hover:to-blue-900'
+            ? 'drop-shadow-xl drop-shadow-purple-500/50 hover:drop-shadow-purple-500/70'
+            : 'drop-shadow-xl drop-shadow-blue-400/40 hover:drop-shadow-blue-400/60'
         }`}
         style={{ zIndex: 40 }}
       >
-        ROLL
-      </button>
+        <defs>
+          <linearGradient id="hexGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={isHidden ? '#8b5cf6' : '#3b82f6'} />
+            <stop offset="100%" stopColor={isHidden ? '#7c3aed' : '#2563eb'} />
+          </linearGradient>
+        </defs>
+        <path 
+          d="M10.75,2.56687 C11.5235,2.12029 12.4765,2.12029 13.25,2.56687 L19.5443,6.20084 C20.3178,6.64743 20.7943,7.47274 20.7943,8.36591 L20.7943,15.6339 C20.7943,16.527 20.3178,17.3523 19.5443,17.7989 L13.25,21.4329 C12.4765,21.8795 11.5235,21.8795 10.75,21.4329 L4.45581,17.7989 C3.68231,17.3523 3.20581,16.527 3.20581,15.6339 L3.20581,8.36591 C3.20581,7.47274 3.68231,6.64743 4.45581,6.20084 L10.75,2.56687 Z" 
+          fill="url(#hexGradient)"
+          className="transition-colors duration-300"
+        />
+        <text 
+          x="12" 
+          y="12" 
+          textAnchor="middle" 
+          dominantBaseline="middle"
+          className="font-bold fill-white transition-colors duration-300"
+          style={{ fontSize: '4.5px' }}
+        >
+          ROLL
+        </text>
+      </svg>
 
-      {/* Roll Popup - Floating Box */}
+      {/* Roll Popup - Floating Box with Overlay */}
       {rollPopup.isOpen && (
-        <div className={`fixed bottom-28 right-6 w-80 rounded-2xl p-6 shadow-2xl border-2 transition-all duration-300 ${
-          isHidden 
-            ? 'bg-gradient-to-br from-gray-800 to-purple-900 border-purple-600'
-            : 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-600'
-        }`} style={{ zIndex: 50 }}>
+        <div 
+          className="fixed inset-0 z-50 flex items-end justify-end p-6"
+          onClick={closeRollPopup}
+        >
+          <div 
+            className={`w-80 rounded-2xl p-6 shadow-2xl border-2 transition-all duration-300 ${
+              isHidden 
+                ? 'bg-gradient-to-br from-gray-800 to-purple-900 border-purple-600'
+                : 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-600'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
             
             {rollPopup.phase === 'search' && (
               <div className="space-y-4">
@@ -1255,21 +1284,15 @@ const DnDCompanionApp = () => {
                   );
                 })()}
                 
-                <div className="flex space-x-2">
+                <div className="flex">
                   <button
                     onClick={() => setRollPopup(prev => ({ ...prev, phase: 'logs' }))}
-                    className={`flex-1 p-3 rounded-lg font-medium transition-colors border ${isHidden 
+                    className={`w-full p-3 rounded-lg font-medium transition-colors border ${isHidden 
                       ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500'
                       : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-500'
                     }`}
                   >
                     Previous Rolls
-                  </button>
-                  <button
-                    onClick={closeRollPopup}
-                    className="flex-1 p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors border border-gray-600"
-                  >
-                    Cancel
                   </button>
                 </div>
               </div>
@@ -1282,10 +1305,6 @@ const DnDCompanionApp = () => {
                 </h2>
                 
                 <div className="text-6xl animate-bounce">🎲</div>
-                
-                <div className="text-4xl font-bold text-gray-300 animate-pulse">
-                  {Math.floor(Math.random() * 20) + 1}
-                </div>
                 
                 <p className="text-gray-300">Rolling...</p>
                 
@@ -1305,40 +1324,119 @@ const DnDCompanionApp = () => {
             
             {rollPopup.phase === 'result' && rollPopup.result && (
               <div className="space-y-4 text-center">
-                <h2 className="text-xl font-bold text-white">
-                  {rollPopup.selectedAction?.name || 'Roll Result'}
-                </h2>
-                
-                <div className="text-6xl">
-                  {rollPopup.result.roll === 20 ? '⭐' : rollPopup.result.roll === 1 ? '💥' : '🎲'}
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">
+                    {rollPopup.selectedAction?.name || 'Roll Result'}
+                  </h2>
+                  
+                  <button 
+                    onClick={() => {
+                      // Re-roll the entire action with animation
+                      if (rollPopup.selectedAction) {
+                        setRollPopup(prev => ({
+                          ...prev,
+                          phase: 'rolling',
+                          result: null
+                        }));
+                        performPopupRoll(rollPopup.selectedAction);
+                      }
+                    }}
+                    className="text-4xl hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+                    title="Click to roll again"
+                  >
+                    {rollPopup.result.roll === 20 ? '⭐' : rollPopup.result.roll === 1 ? '💥' : '🎲'}
+                  </button>
                 </div>
                 
                 <div className="bg-gray-800 p-4 rounded-lg border border-gray-600">
                   <div className="text-2xl font-bold text-white mb-2">
                     {rollPopup.result.type === 'attack' ? (
-                      <div>
-                        <div className="text-sm text-gray-300 mb-1">Attack Roll</div>
-                        <div className="text-3xl text-green-400">{rollPopup.result.totalAttack}</div>
-                        <div className="text-sm text-gray-300 mt-2">Damage</div>
-                        <div className="text-3xl text-red-400">{rollPopup.result.totalDamage}</div>
+                      <div className="space-y-3">
+                        {/* Attack Roll Section - Simple with Hover Details */}
+                        <div className="group cursor-help relative">
+                          <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <Target className="text-green-400" size={16} />
+                                <span className="text-white font-medium">Attack Roll</span>
+                              </div>
+                              <span className="text-2xl font-bold text-green-400">{rollPopup.result.totalAttack}</span>
+                            </div>
+                          </div>
+                          {/* Hover Details */}
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Target className="text-green-400" size={14} />
+                              <span className="text-white text-sm font-medium">Attack Roll Breakdown</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="bg-gray-700 px-2 py-1 rounded text-sm font-mono text-white">{rollPopup.result.attackRoll}</span>
+                              <span className="text-sm text-gray-400">+{rollPopup.selectedAction?.modifier || 0}</span>
+                              <span className="text-sm text-gray-400">=</span>
+                              <span className="text-sm font-bold text-white">{rollPopup.result.totalAttack}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Damage Section - Simple with Hover Details */}
+                        <div className="group cursor-help relative">
+                          <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <Sword className="text-red-400" size={16} />
+                                <span className="text-white font-medium">Damage</span>
+                              </div>
+                              <span className="text-2xl font-bold text-red-400">{rollPopup.result.totalDamage}</span>
+                            </div>
+                          </div>
+                          {/* Hover Details */}
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Sword className="text-red-400" size={14} />
+                              <span className="text-white text-sm font-medium">Damage Breakdown</span>
+                            </div>
+                            <div className="flex items-center space-x-2 flex-wrap">
+                              {rollPopup.result.weaponDiceSize && (
+                                <span className="bg-gray-700 px-2 py-1 rounded text-sm font-mono text-white">{rollPopup.result.baseDamageRoll - 3}</span>
+                              )}
+                              <span className="text-sm text-gray-400">+3</span>
+                              {rollPopup.result.sneakAttackTotal > 0 && (
+                                <>
+                                  <span className="text-sm text-gray-400">+{rollPopup.result.sneakAttackTotal}</span>
+                                  <span className="text-sm text-purple-300">(Sneak)</span>
+                                </>
+                              )}
+                              <span className="text-sm text-gray-400">=</span>
+                              <span className="text-sm font-bold text-white">{rollPopup.result.totalDamage}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center space-x-2">
-                        <span className="text-blue-400">{rollPopup.result.roll}</span>
-                        {rollPopup.result.modifier > 0 && (
-                          <>
-                            <span className="text-gray-400">+</span>
-                            <span className="text-gray-300">{rollPopup.result.modifier}</span>
-                            <span className="text-gray-400">=</span>
-                          </>
-                        )}
-                        <span className={`text-3xl ${
-                          rollPopup.result.roll === 20 ? 'text-yellow-400' : 
-                          rollPopup.result.roll === 1 ? 'text-red-400' : 
-                          'text-green-400'
-                        }`}>
-                          {rollPopup.result.total}
-                        </span>
+                      <div 
+                        className="group cursor-help relative"
+                      >
+                        <div className="text-lg text-gray-300">
+                          {rollPopup.selectedAction?.name || 'Roll'} = 
+                          <span className={`text-3xl ml-2 ${
+                            rollPopup.result.roll === 20 ? 'text-yellow-400' : 
+                            rollPopup.result.roll === 1 ? 'text-red-400' : 
+                            'text-green-400'
+                          }`}>
+                            {rollPopup.result.total}
+                          </span>
+                        </div>
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
+                          <div className="flex items-center space-x-2">
+                            <Eye className="text-green-400" size={14} />
+                            <span className="text-white text-sm font-medium">{rollPopup.selectedAction?.name || 'Roll'}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 mt-1">
+                            <span className="bg-gray-700 px-2 py-0.5 rounded text-xs font-mono text-white">{rollPopup.result.roll}</span>
+                            <span className="text-xs text-gray-400">+{rollPopup.result.modifier}</span>
+                            <span className="text-xs font-bold text-white">= {rollPopup.result.total}</span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1403,7 +1501,16 @@ const DnDCompanionApp = () => {
                               {log.type === 'save' && <Heart className="text-yellow-400" size={16} />}
                               {log.type === 'raw' && <Dice6 className="text-gray-400" size={16} />}
                               {log.type === 'death-save' && <Heart className="text-red-400" size={16} />}
-                              <span className="font-medium text-white text-sm">{log.name}</span>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-white text-sm">{log.name}</span>
+                                <span className="text-xs text-gray-400">
+                                  {log.type === 'attack' ? (
+                                    `Attack = ${log.dice[0]?.total || 0}, Damage = ${log.dice[1]?.total || 0}`
+                                  ) : (
+                                    `= ${log.dice[0]?.total || 0}`
+                                  )}
+                                </span>
+                              </div>
                               {log.isCritical && <Sparkles className="text-yellow-400" size={12} />}
                             </div>
                             <span className="text-xs text-gray-400">{log.timestamp}</span>
@@ -1461,6 +1568,7 @@ const DnDCompanionApp = () => {
                 )}
               </div>
             )}
+          </div>
         </div>
       )}
     </div>
