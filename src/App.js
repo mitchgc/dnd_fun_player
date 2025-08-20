@@ -375,7 +375,7 @@ const DnDCompanionApp = () => {
     const action = rollActions.attacks.find(a => a.id === actionId);
     
     if (action) {
-      openRollPopup('', action);
+      handleActionSelect(action);
     }
   }, [turnState.actionUsed, character.weapons]);
 
@@ -496,6 +496,7 @@ const DnDCompanionApp = () => {
     
     setRollPopup(prev => ({
       ...prev,
+      isOpen: true,
       selectedAction: action,
       phase: 'rolling'
     }));
@@ -508,140 +509,146 @@ const DnDCompanionApp = () => {
   const performPopupRoll = async (action) => {
     try {
       // Rolling phase (2 seconds)
-      setTimeout(async () => {
-        let result;
-        const diceSize = action.dice || 20;
-        const roll = rollDice(diceSize);
-    
-    if (action.type === 'attack') {
-      // Handle weapon attacks
-      const weaponKey = action.id.includes('rapier') ? 'rapier' : 'shortbow';
-      const attackResult = rollAttack();
-      result = {
-        ...attackResult,
-        type: 'attack',
-        name: action.name
-      };
-      
-      // Use action if it's an attack
-      useAction();
-      setLastAttackResult(attackResult);
-      setExpandedSections({ attackRoll: false, totalDamage: false });
-      
-      if (isHidden) {
-        setIsHidden(false); // Attacking breaks stealth
-      }
-    } else if (action.type === 'raw') {
-      // Raw dice rolls (no modifiers)
-      result = {
-        type: action.type,
-        name: action.name,
-        roll,
-        modifier: 0,
-        total: roll,
-        dice: `1d${diceSize}`
-      };
+      setTimeout(() => {
+        try {
+          let result;
+          const diceSize = action.dice || 20;
+          const roll = rollDice(diceSize);
+        
+          if (action.type === 'attack') {
+            // Handle weapon attacks
+            const weaponKey = action.id.includes('rapier') ? 'rapier' : 'shortbow';
+            const attackResult = rollAttack();
+            result = {
+              ...attackResult,
+              type: 'attack',
+              name: action.name
+            };
+            
+            // Use action if it's an attack
+            useAction();
+            setLastAttackResult(attackResult);
+            setExpandedSections({ attackRoll: false, totalDamage: false });
+            
+            if (isHidden) {
+              setIsHidden(false); // Attacking breaks stealth
+            }
+          } else if (action.type === 'raw') {
+            // Raw dice rolls (no modifiers)
+            result = {
+              type: action.type,
+              name: action.name,
+              roll,
+              modifier: 0,
+              total: roll,
+              dice: `1d${diceSize}`
+            };
 
-      // Log the raw dice roll
-      logRoll({
-        type: 'raw',
-        name: action.name,
-        dice: [{
-          name: 'Raw Roll',
-          dice: [`d${diceSize}: ${roll}`],
-          bonus: 0,
-          total: roll
-        }],
-        details: {
-          diceSize,
-          critSuccess: roll === diceSize,
-          critFail: roll === 1
-        }
-      });
-    } else if (action.type === 'death-save') {
-      // Death saves (special handling)
-      const total = roll;
-      result = {
-        type: action.type,
-        name: action.name,
-        roll,
-        modifier: 0,
-        total,
-        dice: '1d20',
-        success: roll >= 10,
-        critSuccess: roll === 20,
-        critFail: roll === 1
-      };
+            // Log the raw dice roll
+            logRoll({
+              type: 'raw',
+              name: action.name,
+              dice: [{
+                name: 'Raw Roll',
+                dice: [`d${diceSize}: ${roll}`],
+                bonus: 0,
+                total: roll
+              }],
+              details: {
+                diceSize,
+                critSuccess: roll === diceSize,
+                critFail: roll === 1
+              }
+            });
+          } else if (action.type === 'death-save') {
+            // Death saves (special handling)
+            const total = roll;
+            result = {
+              type: action.type,
+              name: action.name,
+              roll,
+              modifier: 0,
+              total,
+              dice: '1d20',
+              success: roll >= 10,
+              critSuccess: roll === 20,
+              critFail: roll === 1
+            };
 
-      // Log the death save
-      logRoll({
-        type: 'death-save',
-        name: action.name,
-        dice: [{
-          name: 'Death Save',
-          dice: [`d20: ${roll}`],
-          bonus: 0,
-          total: roll
-        }],
-        details: {
-          success: roll >= 10,
-          critSuccess: roll === 20,
-          critFail: roll === 1
-        }
-      });
-    } else {
-      // Handle skill checks, ability checks, saves, etc.
-      const total = roll + action.modifier;
-      result = {
-        type: action.type,
-        name: action.name,
-        roll,
-        modifier: action.modifier,
-        total,
-        dice: diceSize === 20 ? '1d20' : `1d${diceSize}`,
-        proficient: action.proficient,
-        expertise: action.expertise
-      };
+            // Log the death save
+            logRoll({
+              type: 'death-save',
+              name: action.name,
+              dice: [{
+                name: 'Death Save',
+                dice: [`d20: ${roll}`],
+                bonus: 0,
+                total: roll
+              }],
+              details: {
+                success: roll >= 10,
+                critSuccess: roll === 20,
+                critFail: roll === 1
+              }
+            });
+          } else {
+            // Handle skill checks, ability checks, saves, etc.
+            const total = roll + action.modifier;
+            result = {
+              type: action.type,
+              name: action.name,
+              roll,
+              modifier: action.modifier,
+              total,
+              dice: diceSize === 20 ? '1d20' : `1d${diceSize}`,
+              proficient: action.proficient,
+              expertise: action.expertise
+            };
 
-      // Log the skill/ability check details
-      logRoll({
-        type: action.type,
-        name: action.name,
-        dice: [{
-          name: action.name,
-          dice: [`d${diceSize}: ${roll}`],
-          bonus: action.modifier,
-          total,
-          proficient: action.proficient,
-          expertise: action.expertise
-        }],
-        details: {
-          proficient: action.proficient,
-          expertise: action.expertise,
-          diceSize
+            // Log the skill/ability check details
+            logRoll({
+              type: action.type,
+              name: action.name,
+              dice: [{
+                name: action.name,
+                dice: [`d${diceSize}: ${roll}`],
+                bonus: action.modifier,
+                total,
+                proficient: action.proficient,
+                expertise: action.expertise
+              }],
+              details: {
+                proficient: action.proficient,
+                expertise: action.expertise,
+                diceSize
+              }
+            });
+            
+            // Special handling for initiative
+            if (action.id === 'initiative') {
+              setInitiative({ roll, total });
+            }
+            
+            // Special handling for stealth
+            if (action.id === 'stealth' && total >= 15) {
+              setIsHidden(true);
+            }
+          }
+          
+          // Show result
+          setRollPopup(prev => ({
+            ...prev,
+            phase: 'result',
+            result
+          }));
+        } catch (error) {
+          console.error('Error in performPopupRoll:', error);
+          // Fallback to close popup on error
+          closeRollPopup();
         }
-      });
-      
-      // Special handling for initiative
-      if (action.id === 'initiative') {
-        setInitiative({ roll, total });
-      }
-      
-      // Special handling for stealth
-      if (action.id === 'stealth' && total >= 15) {
-        setIsHidden(true);
-      }
-    }
-    
-      // Show result
-      setRollPopup(prev => ({
-        ...prev,
-        phase: 'result',
-        result
-      }));
+      }, 2000);
     } catch (error) {
-      console.error('Error in performPopupRoll:', error);
-      // Fallback to close popup on error
+      console.error('Error in performPopupRoll setup:', error);
       closeRollPopup();
     }
   };
@@ -697,7 +704,7 @@ const DnDCompanionApp = () => {
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 gap-6">
           <div className="text-center bg-gray-800 p-4 rounded-xl border-2 border-red-500">
             <div className="flex items-center justify-center mb-2">
               <Heart className="text-red-400" size={20} />
@@ -727,33 +734,6 @@ const DnDCompanionApp = () => {
             <p className="text-3xl font-bold text-blue-400">{character.ac}</p>
             <p className="text-xs text-blue-300 mt-1">Armor Class</p>
           </div>
-          <div className={`text-center bg-gray-800 p-4 rounded-xl border-2 transition-all duration-300 ${
-            initiative ? 'border-green-400' : 'border-gray-600'
-          }`}>
-            {initiative ? (
-              <>
-                <div className="flex items-center justify-center mb-2">
-                  <Dice6 className="text-green-400" size={20} />
-                  <p className="text-sm text-green-300 ml-2 font-semibold">INITIATIVE</p>
-                </div>
-                <p className="text-3xl font-bold text-green-400">{initiative.total}</p>
-                <p className="text-xs text-green-300">🎲(20) {initiative.roll} + 3</p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-gray-300 font-semibold mb-2">READY FOR BATTLE?</p>
-                <button
-                  onClick={() => {
-                    const action = rollActions.combat.find(a => a.id === 'initiative');
-                    if (action) openRollPopup('', action);
-                  }}
-                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all duration-300 transform hover:scale-105 shadow-lg"
-                >
-                  🎲 Start Battle
-                </button>
-              </>
-            )}
-          </div>
         </div>
       </div>
 
@@ -764,14 +744,14 @@ const DnDCompanionApp = () => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white flex items-center">
               <Sword className="mr-3 text-red-400" size={24} />
-              Action (1)
+              Action
             </h3>
-            <span className={`px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all duration-300 ${
+            <span className={`px-4 py-2 rounded-xl text-sm font-bold ${
               turnState.actionUsed 
-                ? 'bg-red-600 text-white border border-red-500' 
-                : 'bg-green-600 text-white animate-pulse border border-green-500'
+                ? 'bg-red-600 text-white' 
+                : 'bg-green-600 text-white'
             }`}>
-              {turnState.actionUsed ? 'Used ❌' : 'Available ✅'}
+              {turnState.actionUsed ? 'Used' : '1 Available'}
             </span>
           </div>
           
@@ -791,16 +771,24 @@ const DnDCompanionApp = () => {
                 >
                   <div className="text-lg font-bold">{weapon.name}</div>
                   <div className="text-sm opacity-90 mt-2 space-y-1">
-                    <div>
-                      🎯 {stats.minHit}-{stats.maxHit} to hit
+                    <div className="flex items-center">
+                      <Target className="text-blue-400 mr-1" size={14} />
+                      {stats.minHit}-{stats.maxHit} to hit
                       {isHidden && <span className="text-red-200 ml-1">(advantage!)</span>}
                     </div>
-                    <div>⚔️ {stats.minDamage}-{stats.maxDamage} dmg</div>
+                    <div className="flex items-center">
+                      <Sword className="text-red-400 mr-1" size={14} />
+                      {stats.minDamage}-{stats.maxDamage} dmg
+                    </div>
                     {isHidden && <div className="text-red-200 font-bold">💀 +sneak attack!</div>}
                   </div>
                 </button>
               );
             })}
+          </div>
+          
+          <div className="mt-4 text-sm text-red-300 bg-gray-800 p-4 rounded-xl border border-red-600">
+            💡 <strong>Tip:</strong> As a rogue, you do bonus damage if you're hidden first
           </div>
         </div>
 
@@ -809,24 +797,39 @@ const DnDCompanionApp = () => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white flex items-center">
               <Sparkles className="mr-3 text-purple-400" size={24} />
-              Bonus Action (1)
+              Bonus Action
             </h3>
-            <span className={`px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all duration-300 ${
+            <span className={`px-4 py-2 rounded-xl text-sm font-bold ${
               turnState.bonusActionUsed 
-                ? 'bg-red-600 text-white border border-red-500' 
-                : 'bg-green-600 text-white animate-pulse border border-green-500'
+                ? 'bg-red-600 text-white' 
+                : 'bg-green-600 text-white'
             }`}>
-              {turnState.bonusActionUsed ? 'Used ❌' : 'Available ✅'}
+              {turnState.bonusActionUsed ? 'Used' : '1 Available'}
             </span>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <button
-              onClick={handleToggleHidden}
+              onClick={() => {
+                if (isHidden) {
+                  // If already hidden, just reveal without rolling
+                  handleToggleHidden();
+                } else {
+                  // If not hidden, trigger stealth roll and use bonus action
+                  const stealthAction = rollActions.skills.find(a => a.id === 'stealth');
+                  if (stealthAction) {
+                    handleActionSelect(stealthAction);
+                    useBonusAction(); // Mark bonus action as used
+                  }
+                }
+              }}
+              disabled={!isHidden && turnState.bonusActionUsed}
               className={`p-4 rounded-xl font-semibold transition-all duration-300 flex flex-col items-center justify-center space-y-2 shadow-lg hover:scale-105 border ${
-                isHidden
-                  ? 'bg-gradient-to-r from-purple-700 to-purple-800 text-white border-purple-400 shadow-purple-500/50'
-                  : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white border-purple-500'
+                (!isHidden && turnState.bonusActionUsed)
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
+                  : isHidden
+                    ? 'bg-gradient-to-r from-purple-700 to-purple-800 text-white border-purple-400 shadow-purple-500/50'
+                    : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white border-purple-500'
               }`}
             >
               {isHidden ? <Eye size={24} /> : <EyeOff size={24} />}
@@ -874,7 +877,7 @@ const DnDCompanionApp = () => {
           </div>
           
           <div className="mt-4 text-sm text-purple-300 bg-gray-800 p-4 rounded-xl border border-purple-600">
-            <strong>🗡️ Cunning Action:</strong> As a rogue, you can Dash or Disengage as a bonus action! Hide/Reveal is a free toggle for tactical positioning.
+            💡 <strong>Tip:</strong> You can use a bonus action before or after your action
           </div>
         </div>
 
@@ -882,17 +885,14 @@ const DnDCompanionApp = () => {
         <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-yellow-600">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white">🏃‍♂️ Movement</h3>
-            <span className="px-4 py-2 rounded-xl text-sm font-bold bg-yellow-600 text-white shadow-md border border-yellow-500">
-              {30 - turnState.movementUsed} ft. remaining
+            <span className="px-4 py-2 rounded-xl text-sm font-bold bg-yellow-600 text-white">
+              {30 - turnState.movementUsed} ft remaining
             </span>
           </div>
           
           <div className="bg-gray-800 rounded-xl p-4 border border-yellow-600">
-            <p className="text-sm text-yellow-300 font-semibold">
-              <strong>Speed:</strong> 30 feet per turn
-            </p>
-            <p className="text-xs text-yellow-200 mt-2">
-              💡 You can move before, after, or split around your actions
+            <p className="text-sm text-yellow-300">
+              💡 <strong>Tip:</strong> You can move before and/or after your action or bonus actions
             </p>
           </div>
         </div>
@@ -905,22 +905,9 @@ const DnDCompanionApp = () => {
           >
             🔄 End Turn
           </button>
-          {initiative && (
-            <button
-              onClick={() => {
-                setInitiative(null);
-                resetTurn();
-              }}
-              className="bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white font-bold py-3 px-6 rounded-xl text-sm transition-all duration-300 transform hover:scale-105 shadow-lg border border-red-600"
-            >
-              🏁 End Combat
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Attack Result Display */}
-      {lastAttackResult && <AttackResult result={lastAttackResult} />}
     </div>
   );
 
