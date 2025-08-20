@@ -23,7 +23,7 @@ const DnDCompanionApp = () => {
     isOpen: false,
     searchTerm: '',
     selectedAction: null,
-    phase: 'search' // 'search' -> 'rolling' -> 'result'
+    phase: 'search' // 'search' -> 'rolling' -> 'result' -> 'logs'
   });
   const [rollLogs, setRollLogs] = useState([]);
 
@@ -925,116 +925,6 @@ const DnDCompanionApp = () => {
     </div>
   );
 
-  // Logs Page
-  const LogsPage = () => (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className={`rounded-2xl shadow-xl p-6 border-2 transition-all duration-1000 ${
-        isHidden 
-          ? 'bg-gradient-to-r from-gray-800 to-purple-900 border-purple-600'
-          : 'bg-gradient-to-r from-gray-900 to-gray-800 border-gray-600'
-      }`}>
-        <h2 className="text-3xl font-bold text-white mb-6 flex items-center">
-          <FileText className={`mr-3 transition-colors duration-1000 ${isHidden ? 'text-purple-400' : 'text-blue-400'}`} size={32} />
-          Roll History
-        </h2>
-        
-        {rollLogs.length === 0 ? (
-          <div className="text-center py-12">
-            <Dice6 className="mx-auto text-gray-400 mb-4" size={48} />
-            <p className="text-gray-400 text-lg">No rolls yet. Start rolling to see your history!</p>
-          </div>
-        ) : (
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            {rollLogs.map((log) => (
-              <div key={log.id} className={`rounded-xl border-2 overflow-hidden transition-all duration-300 ${
-                isHidden 
-                  ? 'bg-gray-800 border-purple-700'
-                  : 'bg-gray-800 border-gray-600'
-              }`}>
-                <div className={`p-4 border-b ${isHidden ? 'border-purple-700' : 'border-gray-600'}`}>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-3">
-                      {log.type === 'attack' && <Target className="text-red-400" size={20} />}
-                      {log.type === 'skill' && <Eye className="text-green-400" size={20} />}
-                      {log.type === 'ability' && <Shield className="text-blue-400" size={20} />}
-                      {log.type === 'save' && <Heart className="text-yellow-400" size={20} />}
-                      {log.type === 'raw' && <Dice6 className="text-gray-400" size={20} />}
-                      {log.type === 'death-save' && <Heart className="text-red-400" size={20} />}
-                      <span className="font-bold text-white text-lg">{log.name}</span>
-                      {log.isCritical && <Sparkles className="text-yellow-400 animate-pulse" size={16} />}
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <span className="text-sm text-gray-400">{log.timestamp}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="p-4 space-y-3">
-                  {log.dice.map((diceGroup, index) => (
-                    <div key={index} className="space-y-2">
-                      <h4 className="font-semibold text-white flex items-center">
-                        <Dice6 className="mr-2" size={16} />
-                        {diceGroup.name}
-                        {diceGroup.advantage && <span className="ml-2 text-purple-300 text-sm">(Advantage)</span>}
-                      </h4>
-                      <div className="ml-6 space-y-1">
-                        <div className="flex flex-wrap gap-2">
-                          {diceGroup.dice.map((die, dieIndex) => (
-                            <span key={dieIndex} className="bg-gray-700 px-3 py-1 rounded text-sm font-mono">
-                              {die}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="text-sm text-gray-300">
-                          {diceGroup.bonus > 0 && (
-                            <>
-                              <span>+ {diceGroup.bonus}</span>
-                              {diceGroup.proficient && <span className="ml-2 text-blue-300">(Proficient)</span>}
-                              {diceGroup.expertise && <span className="ml-2 text-purple-300">(Expertise)</span>}
-                            </>
-                          )}
-                          <span className="ml-4 font-bold text-white">= {diceGroup.total}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {/* Additional details for specific roll types */}
-                  {log.details && (
-                    <div className="mt-3 pt-3 border-t border-gray-700">
-                      <div className="text-xs text-gray-400 space-y-1">
-                        {log.details.advantage && <p>✨ Rolled with advantage</p>}
-                        {log.details.sneakAttack && <p>🗡️ Sneak attack triggered</p>}
-                        {log.details.success !== undefined && (
-                          <p className={log.details.success ? 'text-green-400' : 'text-red-400'}>
-                            {log.details.success ? '✅ Success' : '❌ Failure'}
-                          </p>
-                        )}
-                        {log.details.critSuccess && <p className="text-yellow-400">🎯 Critical Success!</p>}
-                        {log.details.critFail && <p className="text-red-400">💥 Critical Failure!</p>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        
-        {rollLogs.length > 0 && (
-          <div className="mt-6 text-center">
-            <button 
-              onClick={() => setRollLogs([])}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl transition-colors duration-300"
-            >
-              Clear Log History
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
   // Enhanced Stats Page
   const StatsPage = () => (
     <div className="p-4 md:p-6 space-y-6">
@@ -1237,21 +1127,6 @@ const DnDCompanionApp = () => {
               <span className="text-lg">Stats</span>
             </button>
             <button
-              onClick={() => setActiveTab('logs')}
-              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
-                activeTab === 'logs'
-                  ? isHidden 
-                    ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
-                    : 'text-blue-400 border-b-4 border-blue-400 bg-gray-700'
-                  : isHidden
-                    ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-t-lg'
-                    : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700 rounded-t-lg'
-              }`}
-            >
-              <FileText size={24} />
-              <span className="text-lg">Logs</span>
-            </button>
-            <button
               onClick={() => setActiveTab('backstory')}
               className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
                 activeTab === 'backstory'
@@ -1274,7 +1149,6 @@ const DnDCompanionApp = () => {
       <div className="max-w-6xl mx-auto">
         {activeTab === 'battle' && <BattleInterface />}
         {activeTab === 'stats' && <StatsPage />}
-        {activeTab === 'logs' && <LogsPage />}
         {activeTab === 'backstory' && <BackstoryPage />}
       </div>
 
@@ -1381,12 +1255,23 @@ const DnDCompanionApp = () => {
                   );
                 })()}
                 
-                <button
-                  onClick={closeRollPopup}
-                  className="w-full p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors border border-gray-600"
-                >
-                  Cancel
-                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setRollPopup(prev => ({ ...prev, phase: 'logs' }))}
+                    className={`flex-1 p-3 rounded-lg font-medium transition-colors border ${isHidden 
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-500'
+                    }`}
+                  >
+                    Previous Rolls
+                  </button>
+                  <button
+                    onClick={closeRollPopup}
+                    className="flex-1 p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors border border-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
             
@@ -1481,6 +1366,99 @@ const DnDCompanionApp = () => {
                 >
                   Continue
                 </button>
+              </div>
+            )}
+            
+            {rollPopup.phase === 'logs' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white">Roll History</h2>
+                  <button
+                    onClick={() => setRollPopup(prev => ({ ...prev, phase: 'search' }))}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    ← Back
+                  </button>
+                </div>
+                
+                {rollLogs.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Dice6 className="mx-auto text-gray-400 mb-3" size={32} />
+                    <p className="text-gray-400">No rolls yet!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {rollLogs.slice(0, 10).map((log) => (
+                      <div key={log.id} className={`rounded-lg border overflow-hidden ${
+                        isHidden 
+                          ? 'bg-gray-800 border-purple-700'
+                          : 'bg-gray-800 border-gray-600'
+                      }`}>
+                        <div className={`p-3 border-b ${isHidden ? 'border-purple-700' : 'border-gray-600'}`}>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center space-x-2">
+                              {log.type === 'attack' && <Target className="text-red-400" size={16} />}
+                              {log.type === 'skill' && <Eye className="text-green-400" size={16} />}
+                              {log.type === 'ability' && <Shield className="text-blue-400" size={16} />}
+                              {log.type === 'save' && <Heart className="text-yellow-400" size={16} />}
+                              {log.type === 'raw' && <Dice6 className="text-gray-400" size={16} />}
+                              {log.type === 'death-save' && <Heart className="text-red-400" size={16} />}
+                              <span className="font-medium text-white text-sm">{log.name}</span>
+                              {log.isCritical && <Sparkles className="text-yellow-400" size={12} />}
+                            </div>
+                            <span className="text-xs text-gray-400">{log.timestamp}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="p-3">
+                          {log.dice.map((diceGroup, index) => (
+                            <div key={index} className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-gray-300">{diceGroup.name}</span>
+                                <div className="flex items-center space-x-1">
+                                  {diceGroup.dice.map((die, dieIndex) => (
+                                    <span key={dieIndex} className="bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono">
+                                      {die.replace('d20: ', '').replace('d6: ', '').replace('d8: ', '')}
+                                    </span>
+                                  ))}
+                                  {diceGroup.bonus > 0 && <span className="text-xs text-gray-400">+{diceGroup.bonus}</span>}
+                                  <span className="text-xs font-bold text-white">= {diceGroup.total}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {log.details && (
+                            <div className="mt-2 pt-2 border-t border-gray-700">
+                              <div className="text-xs text-gray-400 space-x-3">
+                                {log.details.advantage && <span>✨ Advantage</span>}
+                                {log.details.sneakAttack && <span>🗡️ Sneak</span>}
+                                {log.details.success !== undefined && (
+                                  <span className={log.details.success ? 'text-green-400' : 'text-red-400'}>
+                                    {log.details.success ? '✅' : '❌'}
+                                  </span>
+                                )}
+                                {log.details.critSuccess && <span className="text-yellow-400">🎯 Crit!</span>}
+                                {log.details.critFail && <span className="text-red-400">💥 Fail!</span>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {rollLogs.length > 0 && (
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => setRollLogs([])}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-lg text-sm transition-colors"
+                    >
+                      Clear History
+                    </button>
+                  </div>
+                )}
               </div>
             )}
         </div>
