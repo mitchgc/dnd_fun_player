@@ -2,6 +2,8 @@
 
 A beautiful, iPad-optimized D&D companion app designed specifically for new players learning the game mechanics. Built with React and designed to make D&D combat engaging and accessible.
 
+**🌐 Live Demo:** [https://mitchgc.github.io/dnd_fun_player/](https://mitchgc.github.io/dnd_fun_player/)
+
 ## 🌟 Features
 
 ### 🎯 Action Economy Teaching
