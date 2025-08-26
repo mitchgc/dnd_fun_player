@@ -13,18 +13,16 @@ const RollResult = ({
   const renderAttackResult = () => (
     <div className="space-y-3">
       {/* Attack Roll Section - Simple with Hover Details */}
-      <div className="group cursor-help relative">
-        <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Target className="text-green-400" size={16} />
-              <span className="text-white font-medium">Attack Roll</span>
-            </div>
-            <span className="text-2xl font-bold text-green-400">{result.totalAttack}</span>
+      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600 group cursor-help relative">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Target className="text-green-400" size={16} />
+            <span className="text-white font-medium">Attack Roll</span>
           </div>
+          <span className="text-2xl font-bold text-green-400">{result.totalAttack}</span>
         </div>
         {/* Hover Details */}
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max pointer-events-none">
           <div className="flex items-center space-x-2 mb-2">
             <Target className="text-green-400" size={14} />
             <span className="text-white text-sm font-medium">Attack Roll Breakdown</span>
@@ -39,18 +37,16 @@ const RollResult = ({
       </div>
 
       {/* Damage Section - Simple with Hover Details */}
-      <div className="group cursor-help relative">
-        <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Sword className="text-red-400" size={16} />
-              <span className="text-white font-medium">Damage</span>
-            </div>
-            <span className="text-2xl font-bold text-red-400">{result.totalDamage}</span>
+      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600 group cursor-help relative">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Sword className="text-red-400" size={16} />
+            <span className="text-white font-medium">Damage</span>
           </div>
+          <span className="text-2xl font-bold text-red-400">{result.totalDamage}</span>
         </div>
         {/* Hover Details */}
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max pointer-events-none">
           <div className="flex items-center space-x-2 mb-2">
             <Sword className="text-red-400" size={14} />
             <span className="text-white text-sm font-medium">Damage Breakdown</span>
@@ -107,18 +103,16 @@ const RollResult = ({
   );
 
   const renderStandardResult = () => (
-    <div className="group cursor-help relative">
-      <div className="text-lg text-gray-300">
-        {selectedAction?.name || 'Roll'} = 
-        <span className={`text-3xl ml-2 ${
-          result.roll === 20 ? 'text-yellow-400' : 
-          result.roll === 1 ? 'text-red-400' : 
-          'text-green-400'
-        }`}>
-          {result.total}
-        </span>
-      </div>
-      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
+    <div className="text-lg text-gray-300 group cursor-help relative">
+      {selectedAction?.name || 'Roll'} = 
+      <span className={`text-3xl ml-2 ${
+        result.roll === 20 ? 'text-yellow-400' : 
+        result.roll === 1 ? 'text-red-400' : 
+        'text-green-400'
+      }`}>
+        {result.total}
+      </span>
+      <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
         <div className="flex items-center space-x-2">
           <Eye className="text-green-400" size={14} />
           <span className="text-white text-sm font-medium">{selectedAction?.name || 'Roll'}</span>

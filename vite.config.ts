@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { VitePWA } from 'vite-plugin-pwa'
 import { checker } from 'vite-plugin-checker'
 import { resolve } from 'path'
 
@@ -19,41 +18,6 @@ export default defineConfig({
       typescript: true,
       overlay: {
         initialIsOpen: false,
-      }
-    }),
-    VitePWA({
-      registerType: 'autoUpdate',
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              }
-            }
-          }
-        ]
-      },
-      manifest: {
-        name: 'DnD Helper - Revolutionary Companion',
-        short_name: 'DnD Helper',
-        description: 'Revolutionary D&D companion app with cutting-edge technology',
-        theme_color: '#7c3aed',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'landscape-primary',
-        icons: [
-          {
-            src: '/favicon.ico',
-            sizes: '192x192',
-            type: 'image/x-icon'
-          }
-        ]
       }
     })
   ],
