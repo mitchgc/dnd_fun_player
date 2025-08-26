@@ -6,6 +6,7 @@ import DefensivePanel from './components/Battle/DefensivePanel';
 import TurnManager from './components/Battle/TurnManager';
 import RollPopup from './components/Rolls/RollPopup';
 import CharacterToggle from './components/Character/CharacterToggle';
+import AuthScreen from './components/Auth/AuthScreen';
 
 import CollaborativeJournal from './components/Journal/CollaborativeJournal';
 
@@ -25,10 +26,46 @@ const calcProficiencyBonus = (level) => Math.ceil(level / 4) + 1;
 
 const DnDCompanionApp = () => {
   // Initialize authentication
-  const { user, loading: authLoading, isLocalMode } = useAuth();
+  const { user, loading: authLoading, isLocalMode, error: authError, signInWithGoogle, signOut } = useAuth();
   
   // Use CharacterContext for all character data (must be called before any early returns)
   const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
+  
+  // Local state for UI management - MUST be declared before any early returns
+  const [isHidden, setIsHidden] = useState(false);
+  const [initiative, setInitiative] = useState(0);
+  const [turnState, setTurnState] = useState({ actionUsed: false, bonusActionUsed: false, movementUsed: false });
+  
+  // UI state
+  const [activeTab, setActiveTab] = useState('battle');
+  const [lastAttackResult, setLastAttackResult] = useState(null);
+  const [buttonStates, setButtonStates] = useState({});
+  const [selectedWeapon, setSelectedWeapon] = useState('');
+  
+  // Roll popup state
+  const [rollPopup, setRollPopup] = useState({
+    isOpen: false,
+    searchTerm: '',
+    selectedAction: null,
+    phase: 'search',
+    result: null
+  });
+  
+  const [damageInput, setDamageInput] = useState({
+    amount: '',
+    selectedDefenses: [],
+    finalDamage: 0
+  });
+  
+  // Mobile keyboard detection state
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  
+  // UI state for panels and editing
+  const [hpEditing, setHpEditing] = useState(false);
+  const [hpEditValue, setHpEditValue] = useState('');
+  const [defensiveCollapsed, setDefensiveCollapsed] = useState(false);
+  const [turnCollapsed, setTurnCollapsed] = useState(false);
   
   // Memoize auth status to prevent reference changes causing re-renders
   const authStatus = React.useMemo(() => ({
@@ -52,42 +89,7 @@ const DnDCompanionApp = () => {
     </div>
   ), []);
   
-  // Show loading screen while authentication is in progress
-  if (authLoading) {
-    return LoadingScreen;
-  }
-  
-  // Local state for UI management
-  const [isHidden, setIsHidden] = useState(false);
-  const [initiative, setInitiative] = useState(0);
-  const [turnState, setTurnState] = useState({ actionUsed: false, bonusActionUsed: false, movementUsed: false });
-  
-  // Helper functions for character updates
-  const toggleHidden = () => setIsHidden(!isHidden);
-  const setHidden = (hidden) => setIsHidden(hidden);
-  const setInitiativeRoll = (init) => setInitiative(init);
-  const resetTurn = () => setTurnState({ actionUsed: false, bonusActionUsed: false, movementUsed: false });
-  const useAction = () => setTurnState(prev => ({ ...prev, actionUsed: true }));
-  const useBonusAction = () => setTurnState(prev => ({ ...prev, bonusActionUsed: true }));
-  
-  // HP management functions
-  const adjustHP = (amount) => {
-    if (activeCharacter) {
-      const newHP = Math.max(0, Math.min(activeCharacter.max_hp, activeCharacter.current_hp + amount));
-      updateCharacterState(activeCharacter.id, { current_hp: newHP });
-    }
-  };
-  
-  const setHP = (newHP) => {
-    if (activeCharacter) {
-      const clampedHP = Math.max(0, Math.min(activeCharacter.max_hp, newHP));
-      updateCharacterState(activeCharacter.id, { current_hp: clampedHP });
-    }
-  };
-  
-  const applyDamage = (damage) => adjustHP(-damage);
-  const applyHealing = (healing) => adjustHP(healing);
-
+  // Initialize dice roll hooks
   const {
     rollLogs,
     performAttackRoll,
@@ -96,8 +98,8 @@ const DnDCompanionApp = () => {
     logRoll,
     clearLogs
   } = useDiceRolls();
-
-  // Generate roll actions for the character from Supabase data
+  
+  // Generate roll actions for the character from Supabase data - move before early return
   const rollActions = useMemo(() => {
     if (!activeCharacter) return { attacks: [], combat: [], saves: [], skills: [], abilities: [], healing: [], utility: [] };
     
@@ -202,11 +204,6 @@ const DnDCompanionApp = () => {
     };
   }, [activeCharacter]);
 
-  // UI state
-  const [activeTab, setActiveTab] = useState('battle');
-  const [lastAttackResult, setLastAttackResult] = useState(null);
-  const [buttonStates, setButtonStates] = useState({});
-  
   // Dynamic weapon selection based on character
   const getDefaultWeapon = (character) => {
     if (!character?.dnd_character_weapons) return null;
@@ -220,39 +217,38 @@ const DnDCompanionApp = () => {
     }
   };
   
-  const [selectedWeapon, setSelectedWeapon] = useState('');
-  
   // Update selected weapon when character changes
   useEffect(() => {
     if (activeCharacter) {
       setSelectedWeapon(getDefaultWeapon(activeCharacter) || '');
     }
   }, [activeCharacter]);
-
-  // Roll popup state
-  const [rollPopup, setRollPopup] = useState({
-    isOpen: false,
-    searchTerm: '',
-    selectedAction: null,
-    phase: 'search',
-    result: null
-  });
   
-  const [damageInput, setDamageInput] = useState({
-    amount: '',
-    selectedDefenses: [],
-    finalDamage: 0
-  });
+  // Helper functions for character updates
+  const toggleHidden = () => setIsHidden(!isHidden);
+  const setHidden = (hidden) => setIsHidden(hidden);
+  const setInitiativeRoll = (init) => setInitiative(init);
+  const resetTurn = () => setTurnState({ actionUsed: false, bonusActionUsed: false, movementUsed: false });
+  const useAction = () => setTurnState(prev => ({ ...prev, actionUsed: true }));
+  const useBonusAction = () => setTurnState(prev => ({ ...prev, bonusActionUsed: true }));
   
-  // Mobile keyboard detection state
-  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  // HP management functions
+  const adjustHP = (amount) => {
+    if (activeCharacter) {
+      const newHP = Math.max(0, Math.min(activeCharacter.max_hp, activeCharacter.current_hp + amount));
+      updateCharacterState(activeCharacter.id, { current_hp: newHP });
+    }
+  };
   
-  // UI state for panels and editing
-  const [hpEditing, setHpEditing] = useState(false);
-  const [hpEditValue, setHpEditValue] = useState('');
-  const [defensiveCollapsed, setDefensiveCollapsed] = useState(false);
-  const [turnCollapsed, setTurnCollapsed] = useState(false);
+  const setHP = (newHP) => {
+    if (activeCharacter) {
+      const clampedHP = Math.max(0, Math.min(activeCharacter.max_hp, newHP));
+      updateCharacterState(activeCharacter.id, { current_hp: clampedHP });
+    }
+  };
+  
+  const applyDamage = (damage) => adjustHP(-damage);
+  const applyHealing = (healing) => adjustHP(healing);
 
   // Mobile keyboard detection
   useEffect(() => {
@@ -451,6 +447,33 @@ const DnDCompanionApp = () => {
     if (turnState.bonusActionUsed) return;
     useBonusAction();
   }, [turnState.bonusActionUsed, useBonusAction]);
+
+  // Auth handlers
+  const handleGoogleSignIn = async () => {
+    await signInWithGoogle();
+  };
+
+  const handleLocalMode = () => {
+    // Local mode is already handled in useAuth - just reload to trigger local mode
+    window.location.reload();
+  };
+
+  // Show loading screen while authentication is in progress
+  if (authLoading) {
+    return LoadingScreen;
+  }
+
+  // Show auth screen if not authenticated and not in local mode
+  if (!user && !isLocalMode) {
+    return (
+      <AuthScreen
+        onGoogleSignIn={handleGoogleSignIn}
+        onLocalMode={handleLocalMode}
+        loading={authLoading}
+        error={authError}
+      />
+    );
+  }
 
   // Main Battle Interface
   const BattleInterface = () => (
@@ -788,13 +811,28 @@ const DnDCompanionApp = () => {
             </button>
             </div>
             
-            {/* Character Toggle in Navigation */}
-            <CharacterToggle
-              currentCharacterId={activeCharacter?.id || ''}
-              switchCharacter={switchCharacter}
-              currentCharacter={activeCharacter}
-              className="py-2"
-            />
+            <div className="flex items-center space-x-4">
+              {/* Character Toggle in Navigation */}
+              <CharacterToggle
+                currentCharacterId={activeCharacter?.id || ''}
+                switchCharacter={switchCharacter}
+                currentCharacter={activeCharacter}
+                className="py-2"
+              />
+              
+              {/* Sign Out Button (only show if authenticated, not in local mode) */}
+              {user && !isLocalMode && (
+                <button
+                  onClick={signOut}
+                  className="text-gray-400 hover:text-red-400 transition-colors duration-200 px-3 py-2 rounded-lg hover:bg-gray-800"
+                  title="Sign Out"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </nav>

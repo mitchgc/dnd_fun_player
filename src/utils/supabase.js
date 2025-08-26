@@ -31,7 +31,57 @@ if (hasValidCredentials && import.meta.env.PROD && supabase) {
 export const isSupabaseConfigured = hasValidCredentials
 
 
-// Authentication helpers - creates a temporary user account
+// Authentication helpers
+export const signInWithGoogle = async () => {
+  if (!supabase) {
+    console.warn('Supabase not configured. Google sign-in not available.');
+    return null;
+  }
+  
+  try {
+    // Force redirect to localhost during development
+    const redirectUrl = window.location.origin;
+    console.log('🔗 OAuth redirect URL:', redirectUrl);
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl
+      }
+    });
+    
+    if (error) {
+      console.error('Error signing in with Google:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Google auth error:', error);
+    return null;
+  }
+}
+
+export const signOut = async () => {
+  if (!supabase) {
+    console.warn('Supabase not configured. Sign out not available.');
+    return null;
+  }
+  
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Sign out error:', error);
+    return false;
+  }
+}
+
+// Legacy anonymous sign-in (kept for fallback)
 export const signInAnonymously = async () => {
   if (!supabase) {
     console.warn('Supabase not configured. Anonymous sign-in not available.');

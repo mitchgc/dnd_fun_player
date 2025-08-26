@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, signInAnonymously, getCurrentUser, isSupabaseConfigured } from '../utils/supabase';
+import { supabase, signInAnonymously, signInWithGoogle, signOut, getCurrentUser, isSupabaseConfigured } from '../utils/supabase';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -38,18 +38,9 @@ export function useAuth() {
           setUser(currentUser);
           setIsLocalMode(false);
         } else {
-          console.log('❌ No existing user, creating anonymous user automatically...');
-          // Auto-create anonymous user for seamless experience
-          const newUser = await signInAnonymously();
-          if (newUser) {
-            console.log('✅ Auto-created anonymous user:', newUser);
-            setUser(newUser);
-            setIsLocalMode(false);
-          } else {
-            console.warn('Failed to auto-create user, will need manual authentication');
-            setUser(null);
-            setIsLocalMode(false);
-          }
+          console.log('❌ No existing user, waiting for authentication...');
+          setUser(null);
+          setIsLocalMode(false);
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
@@ -94,6 +85,55 @@ export function useAuth() {
     };
   }, [isLocalMode]);
 
+  const signInWithGoogleAuth = async () => {
+    if (isLocalMode) {
+      console.warn('Cannot use Google auth in local mode');
+      return false;
+    }
+    
+    if (!isSupabaseConfigured) {
+      console.error('Supabase not configured');
+      return false;
+    }
+    
+    try {
+      setLoading(true);
+      const result = await signInWithGoogle();
+      return result !== null;
+    } catch (error) {
+      console.error('Google sign-in failed:', error);
+      setError(error.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signOutUser = async () => {
+    if (isLocalMode) {
+      console.log('Switching from local mode to unauthenticated');
+      setUser(null);
+      setIsLocalMode(false);
+      return true;
+    }
+    
+    if (!isSupabaseConfigured) {
+      return false;
+    }
+    
+    try {
+      const success = await signOut();
+      if (success) {
+        setUser(null);
+        setError(null);
+      }
+      return success;
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      return false;
+    }
+  };
+
   const ensureAuthenticated = async () => {
     if (isLocalMode) {
       console.log('🏠 Using local mode user for authentication');
@@ -105,18 +145,9 @@ export function useAuth() {
     }
     
     if (!user) {
-      console.log('🔐 No user found, creating anonymous user...');
-      const newUser = await signInAnonymously();
-      if (newUser) {
-        console.log('✅ Anonymous user created:', newUser);
-        setUser(newUser);
-        setIsLocalMode(false);
-        return newUser;
-      } else {
-        console.error('❌ Failed to create anonymous user');
-        throw new Error('Failed to authenticate');
-      }
+      throw new Error('User not authenticated - please sign in');
     }
+    
     console.log('👤 Using existing authenticated user');
     return user;
   };
@@ -126,6 +157,8 @@ export function useAuth() {
     loading,
     error,
     isLocalMode,
-    ensureAuthenticated
+    ensureAuthenticated,
+    signInWithGoogle: signInWithGoogleAuth,
+    signOut: signOutUser
   };
 }
