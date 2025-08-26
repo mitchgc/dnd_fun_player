@@ -4,6 +4,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Debug logging for environment variables
+console.log('Environment check:', {
+  url: supabaseUrl ? 'Present' : 'Missing',
+  urlValue: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'undefined',
+  key: supabaseAnonKey ? 'Present' : 'Missing',
+  keyValue: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'undefined',
+  mode: import.meta.env.MODE
+});
+
 // Check if we have valid Supabase credentials
 const hasValidCredentials = supabaseUrl && supabaseAnonKey && 
   supabaseUrl.startsWith('https://') && 
@@ -12,6 +21,8 @@ const hasValidCredentials = supabaseUrl && supabaseAnonKey &&
 if (!hasValidCredentials) {
   console.warn('Supabase not configured properly. Collaborative features will be disabled.');
   console.warn('To enable collaborative features, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file');
+  console.warn('Debug - URL valid:', supabaseUrl ? supabaseUrl.startsWith('https://') : false);
+  console.warn('Debug - Key valid:', supabaseAnonKey ? supabaseAnonKey.startsWith('eyJ') : false);
 }
 
 // Create supabase client only if we have valid credentials
@@ -28,8 +39,8 @@ export const signInAnonymously = async () => {
   
   try {
     // Create a temporary user with a random email and password
-    const tempEmail = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@temp.app`;
-    const tempPassword = Math.random().toString(36).substr(2, 15) + Math.random().toString(36).substr(2, 15);
+    const tempEmail = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 11)}@temp.app`;
+    const tempPassword = Math.random().toString(36).substring(2, 17) + Math.random().toString(36).substring(2, 17);
     
     const { data, error } = await supabase.auth.signUp({
       email: tempEmail,
