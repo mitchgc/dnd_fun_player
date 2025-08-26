@@ -19,7 +19,7 @@ const DefensivePanel = ({
 }) => {
   const handleHPKeyDown = (e) => {
     if (e.key === 'Enter') {
-      const newHP = Math.max(0, Math.min(character.maxHP, parseInt(hpEditValue) || 0));
+      const newHP = Math.max(0, Math.min(character?.max_hp || character?.maxHP || 100, parseInt(hpEditValue) || 0));
       onHPChange(newHP);
       onHPEditToggle(false);
     } else if (e.key === 'Escape') {
@@ -51,7 +51,9 @@ const DefensivePanel = ({
             <h2 className="text-3xl font-bold text-white">
               Defensive
             </h2>
-            <p className="text-gray-300 font-medium">{character.name} - {character.race} {character.class}</p>
+            <p className="text-gray-300 font-medium">
+              {character?.name ? `${character.name} - ${character.race} ${character.character_class || character.class}` : 'Loading character...'}
+            </p>
           </div>
         </div>
         <div className="flex items-center space-x-3">
@@ -77,7 +79,7 @@ const DefensivePanel = ({
               {/* Health percentage bar background */}
               <div 
                 className="absolute inset-0 bg-green-500/10 transition-all duration-500"
-                style={{ width: `${(currentHP / character.maxHP) * 100}%` }}
+                style={{ width: `${(currentHP / (character?.max_hp || character?.maxHP || 100)) * 100}%` }}
               ></div>
               <div className="relative">
                 <div className="flex items-center justify-between mb-3">
@@ -103,7 +105,7 @@ const DefensivePanel = ({
                         className="text-2xl font-bold text-green-400 cursor-pointer hover:bg-gray-700 rounded px-2 py-1 transition-colors"
                         title="Click to edit HP directly"
                       >
-                        {currentHP}/{character.maxHP}
+                        {currentHP}/{character?.max_hp || character?.maxHP || '?'}
                       </span>
                     )}
                   </div>
@@ -132,7 +134,7 @@ const DefensivePanel = ({
                   <Shield className="text-gray-400 mr-3" size={24} />
                   <span className="text-lg font-bold text-gray-300">Armor Class</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-300">{character.ac}</span>
+                <span className="text-2xl font-bold text-gray-300">{character?.armor_class || character?.ac || '?'}</span>
               </div>
             </div>
 
@@ -143,7 +145,7 @@ const DefensivePanel = ({
                 <span className="text-lg font-bold text-gray-300">Defensive Abilities</span>
               </div>
               <div className="grid grid-cols-1 gap-2">
-                {Object.entries(character.defensiveAbilities || {}).map(([key, ability]) => (
+                {Object.entries(character?.defensiveAbilities || {}).map(([key, ability]) => (
                   <div 
                     key={key}
                     className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${

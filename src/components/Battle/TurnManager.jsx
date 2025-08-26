@@ -87,28 +87,39 @@ const TurnManager = ({
             </div>
             
             <div className="grid grid-cols-4 gap-3">
-              {Object.entries(character.weapons).map(([key, weapon]) => {
-                const stats = getWeaponStats(key, isHidden, character);
-                return (
-                  <ActionButton
-                    key={key}
-                    onClick={() => onAttack(key)}
-                    disabled={turnState.actionUsed}
-                    variant="danger"
-                    loading={buttonStates[`attack-${key}`]}
-                    icon={key === 'shortbow' ? <span>🏹</span> : <Sword />}
-                    title={isHidden ? `${weapon.name} (Sneak Attack)` : weapon.name}
-                    subtitle={`${stats.minDamage}-${stats.maxDamage} dmg`}
-                  />
-                );
-              })}
+              {character?.dnd_character_weapons?.length > 0 ? 
+                character.dnd_character_weapons.map((weapon) => {
+                  const baseDamage = weapon.damage_dice || '1d6';
+                  const damageBonus = weapon.damage_bonus || 0;
+                  return (
+                    <ActionButton
+                      key={weapon.name}
+                      onClick={() => onAttack(weapon.name)}
+                      disabled={turnState.actionUsed}
+                      variant="danger"
+                      loading={buttonStates[`attack-${weapon.name}`]}
+                      icon={<Sword />}
+                      title={isHidden ? `${weapon.name} (Sneak Attack)` : weapon.name}
+                      subtitle={`${baseDamage}${damageBonus > 0 ? `+${damageBonus}` : ''} ${weapon.damage_type || 'dmg'}`}
+                    />
+                  );
+                })
+                : 
+                <div className="col-span-4 text-gray-400 text-center py-4">
+                  No weapons available
+                </div>
+              }
             </div>
             
             <div className={`mt-4 text-sm bg-gray-800 p-4 rounded-xl border ${isHidden ? 'text-purple-300 border-purple-600' : 'text-red-300 border-red-600'}`}>
               {isHidden ? (
-                <>🥷 <strong>You are hidden</strong> - doing {character.sneakAttackDice}d6 extra sneak attack damage</>
+                <><strong>You are hidden</strong> - advantage on attacks and extra damage</>
               ) : (
-                <>💡 <strong>Tip:</strong> As a rogue, you do bonus damage if you're hidden first</>
+                character?.character_class?.toLowerCase().includes('rogue') ? (
+                  <><strong>Tip:</strong> As a rogue, you do bonus damage if you're hidden first</>
+                ) : (
+                  <><strong>Ready for combat</strong></>
+                )
               )}
             </div>
           </div>
@@ -203,9 +214,10 @@ const TurnManager = ({
 
 TurnManager.propTypes = {
   character: PropTypes.shape({
-    weapons: PropTypes.object.isRequired,
-    sneakAttackDice: PropTypes.number.isRequired
-  }).isRequired,
+    dnd_character_weapons: PropTypes.array,
+    level: PropTypes.number,
+    character_class: PropTypes.string
+  }),
   turnState: PropTypes.shape({
     actionUsed: PropTypes.bool.isRequired,
     bonusActionUsed: PropTypes.bool.isRequired,

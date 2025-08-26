@@ -9,37 +9,53 @@ import CharacterToggle from './components/Character/CharacterToggle';
 
 import CollaborativeJournal from './components/Journal/CollaborativeJournal';
 
+// Import Character Context
+import { CharacterProvider, useCharacter } from './contexts/CharacterContext';
+
 // Import custom hooks
 import { useCharacterState } from './hooks/useCharacterState';
 import { useDiceRolls } from './hooks/useDiceRolls';
 
-// Import data
-import { generateRollActions } from './data/rollActionsGenerator';
+// Helper function to calculate ability modifier
+const calcModifier = (score) => Math.floor((score - 10) / 2);
+
+// Helper function to calculate proficiency bonus
+const calcProficiencyBonus = (level) => Math.ceil(level / 4) + 1;
 
 const DnDCompanionApp = () => {
-  // Use custom hooks for state management
-  const {
-    currentCharacterId,
-    switchCharacter,
-    currentHP,
-    isHidden,
-    initiative,
-    turnState,
-    useAction,
-    useBonusAction,
-    resetTurn,
-    adjustHP,
-    setHP,
-    applyDamage,
-    applyHealing,
-    toggleHidden,
-    setHidden,
-    setInitiativeRoll,
-    character
-  } = useCharacterState();
-
-  // Generate roll actions for the character
-  const rollActions = useMemo(() => generateRollActions(character), [character]);
+  // Use CharacterContext for all character data
+  const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
+  
+  // Local state for UI management
+  const [isHidden, setIsHidden] = useState(false);
+  const [initiative, setInitiative] = useState(0);
+  const [turnState, setTurnState] = useState({ actionUsed: false, bonusActionUsed: false, movementUsed: false });
+  
+  // Helper functions for character updates
+  const toggleHidden = () => setIsHidden(!isHidden);
+  const setHidden = (hidden) => setIsHidden(hidden);
+  const setInitiativeRoll = (init) => setInitiative(init);
+  const resetTurn = () => setTurnState({ actionUsed: false, bonusActionUsed: false, movementUsed: false });
+  const useAction = () => setTurnState(prev => ({ ...prev, actionUsed: true }));
+  const useBonusAction = () => setTurnState(prev => ({ ...prev, bonusActionUsed: true }));
+  
+  // HP management functions
+  const adjustHP = (amount) => {
+    if (activeCharacter) {
+      const newHP = Math.max(0, Math.min(activeCharacter.max_hp, activeCharacter.current_hp + amount));
+      updateCharacterState(activeCharacter.id, { current_hp: newHP });
+    }
+  };
+  
+  const setHP = (newHP) => {
+    if (activeCharacter) {
+      const clampedHP = Math.max(0, Math.min(activeCharacter.max_hp, newHP));
+      updateCharacterState(activeCharacter.id, { current_hp: clampedHP });
+    }
+  };
+  
+  const applyDamage = (damage) => adjustHP(-damage);
+  const applyHealing = (healing) => adjustHP(healing);
 
   const {
     rollLogs,
@@ -50,6 +66,111 @@ const DnDCompanionApp = () => {
     clearLogs
   } = useDiceRolls();
 
+  // Generate roll actions for the character from Supabase data
+  const rollActions = useMemo(() => {
+    if (!activeCharacter) return { attacks: [], combat: [], saves: [], skills: [], abilities: [], healing: [], utility: [] };
+    
+    const attacks = (activeCharacter.dnd_character_weapons || []).map(weapon => ({
+      id: `${weapon.name.toLowerCase().replace(/\s+/g, '-')}-attack`,
+      name: `${weapon.name} Attack`,
+      modifier: weapon.attack_bonus || 0,
+      type: 'attack',
+      weapon: weapon.name,
+      damage: weapon.damage_dice,
+      damageBonus: weapon.damage_bonus || 0,
+      damageType: weapon.damage_type,
+      description: weapon.description || `Attack with ${weapon.name}`,
+      diceType: 'd20'
+    }));
+    
+    const abilities = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
+      .map(ability => ({
+        id: ability,
+        name: `${ability.charAt(0).toUpperCase() + ability.slice(1)} Check`,
+        modifier: calcModifier(activeCharacter.ability_scores[ability] || 10),
+        type: 'ability',
+        ability,
+        description: `Raw ${ability} ability check`,
+        diceType: 'd20'
+      }));
+    
+    const saves = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
+      .map(ability => {
+        const abilityMod = calcModifier(activeCharacter.ability_scores[ability] || 10);
+        const profBonus = calcProficiencyBonus(activeCharacter.level || 1);
+        // TODO: Add saving throw proficiencies from character data
+        return {
+          id: `${ability}-save`,
+          name: `${ability.charAt(0).toUpperCase() + ability.slice(1)} Save`,
+          modifier: abilityMod, // + profBonus if proficient
+          type: 'save',
+          ability,
+          description: `${ability.charAt(0).toUpperCase() + ability.slice(1)} saving throw`,
+          diceType: 'd20'
+        };
+      });
+    
+    const combat = [
+      {
+        id: 'initiative',
+        name: 'Initiative',
+        modifier: (activeCharacter.initiative_bonus || 0),
+        type: 'initiative',
+        description: 'Roll for turn order in combat',
+        diceType: 'd20'
+      },
+      {
+        id: 'death-save',
+        name: 'Death Saving Throw',
+        modifier: 0,
+        type: 'death-save',
+        description: 'Stabilize when dying (DC 10)',
+        diceType: 'd20'
+      }
+    ];
+    
+    const healing = [
+      {
+        id: 'short-rest',
+        name: 'Short Rest Healing',
+        modifier: 0,
+        type: 'healing',
+        healType: 'short-rest',
+        description: 'Roll Hit Dice to recover HP',
+        diceType: 'd8'
+      },
+      {
+        id: 'basic-potion',
+        name: 'Basic Healing Potion',
+        modifier: 0,
+        type: 'healing',
+        healType: 'potion',
+        dice: '2d4+2',
+        description: 'Roll 2d4+2 healing',
+        diceType: 'd4'
+      }
+    ];
+    
+    const utility = [
+      { id: 'd20', name: 'Raw d20', modifier: 0, type: 'raw', dice: 20, diceType: 'd20' },
+      { id: 'd12', name: 'Raw d12', modifier: 0, type: 'raw', dice: 12, diceType: 'd12' },
+      { id: 'd10', name: 'Raw d10', modifier: 0, type: 'raw', dice: 10, diceType: 'd10' },
+      { id: 'd8', name: 'Raw d8', modifier: 0, type: 'raw', dice: 8, diceType: 'd8' },
+      { id: 'd6', name: 'Raw d6', modifier: 0, type: 'raw', dice: 6, diceType: 'd6' },
+      { id: 'd4', name: 'Raw d4', modifier: 0, type: 'raw', dice: 4, diceType: 'd4' }
+    ];
+    
+    return {
+      attacks: attacks.sort((a, b) => b.modifier - a.modifier),
+      combat: combat.sort((a, b) => b.modifier - a.modifier),
+      saves: saves.sort((a, b) => b.modifier - a.modifier),
+      skills: [], // TODO: Add skills when we have skill proficiency data
+      abilities: abilities.sort((a, b) => b.modifier - a.modifier),
+      healing,
+      utility
+    };
+  }, [activeCharacter]);
+
   // UI state
   const [activeTab, setActiveTab] = useState('battle');
   const [lastAttackResult, setLastAttackResult] = useState(null);
@@ -57,20 +178,25 @@ const DnDCompanionApp = () => {
   
   // Dynamic weapon selection based on character
   const getDefaultWeapon = (character) => {
-    const weaponKeys = Object.keys(character.weapons);
+    if (!character?.dnd_character_weapons) return null;
+    const weapons = character.dnd_character_weapons;
     if (character.name === 'Emba') {
-      return weaponKeys.includes('eldritchBlast') ? 'eldritchBlast' : weaponKeys[0];
+      const eldritchBlast = weapons.find(w => w.name === 'Eldritch Blast');
+      return eldritchBlast ? eldritchBlast.name : weapons[0]?.name;
     } else {
-      return weaponKeys.includes('rapier') ? 'rapier' : weaponKeys[0];
+      const rapier = weapons.find(w => w.name.toLowerCase().includes('rapier'));
+      return rapier ? rapier.name : weapons[0]?.name;
     }
   };
   
-  const [selectedWeapon, setSelectedWeapon] = useState(() => getDefaultWeapon(character));
+  const [selectedWeapon, setSelectedWeapon] = useState('');
   
   // Update selected weapon when character changes
   useEffect(() => {
-    setSelectedWeapon(getDefaultWeapon(character));
-  }, [character.name]);
+    if (activeCharacter) {
+      setSelectedWeapon(getDefaultWeapon(activeCharacter) || '');
+    }
+  }, [activeCharacter]);
 
   // Roll popup state
   const [rollPopup, setRollPopup] = useState({
@@ -201,9 +327,9 @@ const DnDCompanionApp = () => {
           setHidden(false); // Attacking breaks stealth
         }
       } else if (action.type === 'healing') {
-        result = performHealingRoll(action, currentHP);
+        result = performHealingRoll(action, activeCharacter?.current_hp || 0);
         if (result.healingAmount !== undefined) {
-          applyHealing(result.healingAmount, result.healType);
+          applyHealing(result.healingAmount);
         }
       } else {
         result = performStandardRoll(action);
@@ -225,7 +351,7 @@ const DnDCompanionApp = () => {
         result
       }));
     }, 2000);
-  }, [performAttackRoll, performStandardRoll, performHealingRoll, isHidden, currentHP, useAction, setHidden, applyHealing, setInitiativeRoll, toggleHidden, closeRollPopup]);
+  }, [performAttackRoll, performStandardRoll, performHealingRoll, isHidden, activeCharacter?.current_hp, useAction, setHidden, applyHealing, setInitiativeRoll, toggleHidden, closeRollPopup]);
 
   const handleAttack = useCallback((weaponKey) => {
     if (turnState.actionUsed) return;
@@ -245,7 +371,8 @@ const DnDCompanionApp = () => {
 
   const handleApplyDamage = useCallback((damageData) => {
     if (damageData.amount) {
-      const finalHP = applyDamage(damageData);
+      applyDamage(damageData.finalDamage);
+      const finalHP = Math.max(0, activeCharacter.current_hp - damageData.finalDamage);
       
       // Log the damage taken
       logRoll({
@@ -298,8 +425,8 @@ const DnDCompanionApp = () => {
   const BattleInterface = () => (
     <div className="p-4 md:p-6 space-y-6">
       <DefensivePanel
-        character={character}
-        currentHP={currentHP}
+        character={activeCharacter}
+        currentHP={activeCharacter?.current_hp || 0}
         hpEditing={hpEditing}
         hpEditValue={hpEditValue}
         isHidden={isHidden}
@@ -313,7 +440,7 @@ const DnDCompanionApp = () => {
       />
 
       <TurnManager
-        character={character}
+        character={activeCharacter}
         turnState={turnState}
         isHidden={isHidden}
         turnCollapsed={turnCollapsed}
@@ -330,102 +457,212 @@ const DnDCompanionApp = () => {
     </div>
   );
 
-  // Enhanced Stats Page
-  const StatsPage = () => (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-blue-600">
-        <h2 className="text-3xl font-bold text-white mb-6 flex items-center">
-          <Shield className="mr-3 text-blue-400" size={32} />
-          Character Stats
-        </h2>
-        
-        {/* Ability Scores */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-          <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-gray-600">
-            <p className="text-sm text-gray-300 font-semibold">STR</p>
-            <p className="text-2xl font-bold text-white">{character.abilityScores.strength} ({character.abilityModifiers.strength >= 0 ? '+' : ''}{character.abilityModifiers.strength})</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-green-500">
-            <p className="text-sm text-green-400 font-semibold">DEX</p>
-            <p className="text-2xl font-bold text-green-400">{character.abilityScores.dexterity} ({character.abilityModifiers.dexterity >= 0 ? '+' : ''}{character.abilityModifiers.dexterity})</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-gray-600">
-            <p className="text-sm text-gray-300 font-semibold">CON</p>
-            <p className="text-2xl font-bold text-white">{character.abilityScores.constitution} ({character.abilityModifiers.constitution >= 0 ? '+' : ''}{character.abilityModifiers.constitution})</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-blue-500">
-            <p className="text-sm text-blue-400 font-semibold">INT</p>
-            <p className="text-2xl font-bold text-blue-400">{character.abilityScores.intelligence} ({character.abilityModifiers.intelligence >= 0 ? '+' : ''}{character.abilityModifiers.intelligence})</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-purple-500">
-            <p className="text-sm text-purple-400 font-semibold">WIS</p>
-            <p className="text-2xl font-bold text-purple-400">{character.abilityScores.wisdom} ({character.abilityModifiers.wisdom >= 0 ? '+' : ''}{character.abilityModifiers.wisdom})</p>
-          </div>
-          <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-gray-600">
-            <p className="text-sm text-gray-300 font-semibold">CHA</p>
-            <p className="text-2xl font-bold text-white">{character.abilityScores.charisma} ({character.abilityModifiers.charisma >= 0 ? '+' : ''}{character.abilityModifiers.charisma})</p>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-1 gap-6">
-          {/* Special Features */}
-          <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-gray-600">
-            <h3 className="text-xl font-bold mb-4 text-gray-300 flex items-center">
-              <Sparkles className="mr-2" size={20} />
-              Special Features
-            </h3>
-            <div className="space-y-4">
-              {/* Combat Section */}
-              <div>
-                <h4 className="text-lg font-semibold text-red-300 mb-3">Combat</h4>
-                <div className="space-y-3 text-sm">
-                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                    <span className="font-bold text-red-400">⚔️ Sneak Attack:</span>
-                    <span className="ml-2 text-white">+{character.sneakAttackDice}d6 damage when conditions met</span>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                    <span className="font-bold text-red-400">🏃 Cunning Action:</span>
-                    <span className="ml-2 text-white">Hide, Dash, or Disengage as bonus action</span>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                    <span className="font-bold text-red-400">🛡️ Uncanny Dodge:</span>
-                    <span className="ml-2 text-white">Use reaction to halve damage from one attack per turn</span>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                    <span className="font-bold text-red-400">⚡ Skirmisher:</span>
-                    <span className="ml-2 text-white">Move after attacking without provoking opportunity attacks</span>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded-lg border border-red-500">
-                    <span className="font-bold text-red-400">🐍 Poison Spray:</span>
-                    <span className="ml-2 text-white">At-will cantrip: Con save or 1d12 poison damage (10 ft range)</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Story Section */}
-              <div>
-                <h4 className="text-lg font-semibold text-blue-300 mb-3">Story</h4>
-                <div className="space-y-3 text-sm">
-                  <div className="bg-gray-700 p-3 rounded-lg border border-blue-500">
-                    <span className="font-bold text-blue-400">🐍 Suggestion:</span>
-                    <span className="ml-2 text-white">1/long rest: Convince a creature to follow a brief, reasonable command you give them</span>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded-lg border border-blue-500">
-                    <span className="font-bold text-blue-400">🐴 Animal Friendship:</span>
-                    <span className="ml-2 text-white">At-will: Convince a beast to be friendly toward you and your allies instead of attacking</span>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded-lg border border-blue-500">
-                    <span className="font-bold text-blue-400">👂 Ear to the Ground:</span>
-                    <span className="ml-2 text-white">Advantage on Investigation to gather information in settlements</span>
-                  </div>
-                </div>
-              </div>
+  // Enhanced Stats Page using Supabase data
+  const StatsPage = () => {
+    const { activeCharacter, isLoading, error } = useCharacter();
+    
+    if (isLoading) {
+      return (
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-blue-600">
+            <div className="animate-pulse text-white text-center">
+              Loading character data...
             </div>
           </div>
         </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-gradient-to-r from-red-900 to-red-800 rounded-2xl shadow-xl p-6 border-2 border-red-600">
+            <div className="text-white text-center">
+              Error loading character: {error}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (!activeCharacter) {
+      return (
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-gray-600">
+            <div className="text-white text-center">
+              No character selected
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Helper function to calculate ability modifier
+    const calcModifier = (score) => Math.floor((score - 10) / 2);
+    
+    return (
+      <div className="p-4 md:p-6 space-y-6">
+        <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-blue-600">
+          <h2 className="text-3xl font-bold text-white mb-6 flex items-center">
+            <Shield className="mr-3 text-blue-400" size={32} />
+            {activeCharacter.name} - {activeCharacter.race} {activeCharacter.character_class} (Level {activeCharacter.level})
+          </h2>
+          
+          {/* Basic Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="text-center p-4 bg-red-900 rounded-xl border-2 border-red-600">
+              <p className="text-sm text-red-300 font-semibold">HP</p>
+              <p className="text-2xl font-bold text-white">{activeCharacter.current_hp}/{activeCharacter.max_hp}</p>
+            </div>
+            <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-gray-600">
+              <p className="text-sm text-gray-300 font-semibold">AC</p>
+              <p className="text-2xl font-bold text-white">{activeCharacter.armor_class}</p>
+            </div>
+            <div className="text-center p-4 bg-green-900 rounded-xl border-2 border-green-600">
+              <p className="text-sm text-green-300 font-semibold">Initiative</p>
+              <p className="text-2xl font-bold text-white">+{activeCharacter.initiative_bonus}</p>
+            </div>
+            <div className="text-center p-4 bg-blue-900 rounded-xl border-2 border-blue-600">
+              <p className="text-sm text-blue-300 font-semibold">Speed</p>
+              <p className="text-2xl font-bold text-white">{activeCharacter.speed} ft</p>
+            </div>
+          </div>
+          
+          {/* Ability Scores */}
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-white mb-4">Ability Scores</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-gray-600">
+                <p className="text-sm text-gray-300 font-semibold">STR</p>
+                <p className="text-2xl font-bold text-white">{activeCharacter.ability_scores.strength} ({calcModifier(activeCharacter.ability_scores.strength) >= 0 ? '+' : ''}{calcModifier(activeCharacter.ability_scores.strength)})</p>
+              </div>
+              <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-green-500">
+                <p className="text-sm text-green-400 font-semibold">DEX</p>
+                <p className="text-2xl font-bold text-green-400">{activeCharacter.ability_scores.dexterity} ({calcModifier(activeCharacter.ability_scores.dexterity) >= 0 ? '+' : ''}{calcModifier(activeCharacter.ability_scores.dexterity)})</p>
+              </div>
+              <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-gray-600">
+                <p className="text-sm text-gray-300 font-semibold">CON</p>
+                <p className="text-2xl font-bold text-white">{activeCharacter.ability_scores.constitution} ({calcModifier(activeCharacter.ability_scores.constitution) >= 0 ? '+' : ''}{calcModifier(activeCharacter.ability_scores.constitution)})</p>
+              </div>
+              <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-blue-500">
+                <p className="text-sm text-blue-400 font-semibold">INT</p>
+                <p className="text-2xl font-bold text-blue-400">{activeCharacter.ability_scores.intelligence} ({calcModifier(activeCharacter.ability_scores.intelligence) >= 0 ? '+' : ''}{calcModifier(activeCharacter.ability_scores.intelligence)})</p>
+              </div>
+              <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-purple-500">
+                <p className="text-sm text-purple-400 font-semibold">WIS</p>
+                <p className="text-2xl font-bold text-purple-400">{activeCharacter.ability_scores.wisdom} ({calcModifier(activeCharacter.ability_scores.wisdom) >= 0 ? '+' : ''}{calcModifier(activeCharacter.ability_scores.wisdom)})</p>
+              </div>
+              <div className="text-center p-4 bg-gray-800 rounded-xl border-2 border-yellow-500">
+                <p className="text-sm text-yellow-400 font-semibold">CHA</p>
+                <p className="text-2xl font-bold text-yellow-400">{activeCharacter.ability_scores.charisma} ({calcModifier(activeCharacter.ability_scores.charisma) >= 0 ? '+' : ''}{calcModifier(activeCharacter.ability_scores.charisma)})</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Weapons */}
+          {activeCharacter.dnd_character_weapons && activeCharacter.dnd_character_weapons.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+                <Sword className="mr-2" size={20} />
+                Weapons & Attacks
+              </h3>
+              <div className="grid gap-4">
+                {activeCharacter.dnd_character_weapons.map((weapon, index) => (
+                  <div key={index} className="bg-gray-800 p-4 rounded-xl border-2 border-red-600">
+                    <h4 className="font-bold text-red-400 text-lg mb-2">{weapon.name}</h4>
+                    <div className="grid md:grid-cols-2 gap-2 text-sm">
+                      <p><strong className="text-gray-300">Attack Bonus:</strong> <span className="text-white">+{weapon.attack_bonus}</span></p>
+                      <p><strong className="text-gray-300">Damage:</strong> <span className="text-white">{weapon.damage_dice}+{weapon.damage_bonus} {weapon.damage_type}</span></p>
+                      {weapon.range_normal && (
+                        <p><strong className="text-gray-300">Range:</strong> <span className="text-white">{weapon.range_normal} ft</span></p>
+                      )}
+                      {weapon.properties && (
+                        <p><strong className="text-gray-300">Properties:</strong> <span className="text-white">{weapon.properties}</span></p>
+                      )}
+                    </div>
+                    {weapon.description && (
+                      <p className="text-gray-300 text-sm mt-2">{weapon.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Special Abilities */}
+          {activeCharacter.dnd_character_abilities && activeCharacter.dnd_character_abilities.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+                <Sparkles className="mr-2" size={20} />
+                Special Abilities
+              </h3>
+              <div className="grid gap-4">
+                {activeCharacter.dnd_character_abilities.map((ability, index) => {
+                  // Color coding by ability type
+                  const getAbilityColor = (type) => {
+                    switch(type) {
+                      case 'racial': return 'border-green-500 text-green-400';
+                      case 'class': return 'border-blue-500 text-blue-400';
+                      case 'patron': return 'border-purple-500 text-purple-400';
+                      case 'invocation': return 'border-yellow-500 text-yellow-400';
+                      case 'pact': return 'border-pink-500 text-pink-400';
+                      case 'feat': return 'border-orange-500 text-orange-400';
+                      case 'background': return 'border-cyan-500 text-cyan-400';
+                      default: return 'border-gray-500 text-gray-400';
+                    }
+                  };
+                  
+                  const colorClass = getAbilityColor(ability.ability_type);
+                  
+                  return (
+                    <div key={index} className={`bg-gray-800 p-4 rounded-xl border-2 ${colorClass}`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className={`font-bold text-lg ${colorClass.split(' ')[1]}`}>{ability.name}</h4>
+                        {ability.uses_per_rest < 999 && (
+                          <span className="text-sm bg-gray-700 px-2 py-1 rounded">
+                            {ability.uses_remaining}/{ability.uses_per_rest} uses
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-400 mb-2 uppercase tracking-wide">
+                        {ability.ability_type} {ability.rest_type !== 'none' && `• ${ability.rest_type} rest`}
+                      </div>
+                      <p className="text-gray-300 text-sm">{ability.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Resources */}
+          {activeCharacter.dnd_character_resources && activeCharacter.dnd_character_resources.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+                <BookOpen className="mr-2" size={20} />
+                Resources
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {activeCharacter.dnd_character_resources.map((resource, index) => (
+                  <div key={index} className="bg-gray-800 p-4 rounded-xl border-2 border-indigo-600">
+                    <h4 className="font-bold text-indigo-400 text-lg mb-2">{resource.resource_name}</h4>
+                    <div className="flex justify-between items-center">
+                      <span className="text-2xl font-bold text-white">
+                        {resource.current_amount}/{resource.max_amount}
+                      </span>
+                      <span className="text-xs text-gray-400 uppercase tracking-wide">
+                        {resource.recharge_type}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const StoryPage = () => (
     <div className="p-4 md:p-6">
@@ -522,9 +759,9 @@ const DnDCompanionApp = () => {
             
             {/* Character Toggle in Navigation */}
             <CharacterToggle
-              currentCharacterId={currentCharacterId}
+              currentCharacterId={activeCharacter?.id || ''}
               switchCharacter={switchCharacter}
-              currentCharacter={character}
+              currentCharacter={activeCharacter}
               className="py-2"
             />
           </div>
@@ -582,8 +819,8 @@ const DnDCompanionApp = () => {
         isKeyboardOpen={isKeyboardOpen}
         viewportHeight={viewportHeight}
         isHidden={isHidden}
-        character={character}
-        currentHP={currentHP}
+        character={activeCharacter}
+        currentHP={activeCharacter?.current_hp || 0}
         damageInput={damageInput}
         rollLogs={rollLogs}
         onClose={closeRollPopup}
@@ -598,4 +835,11 @@ const DnDCompanionApp = () => {
   );
 };
 
-export default DnDCompanionApp;
+// Wrap the app with CharacterProvider
+const App = () => (
+  <CharacterProvider>
+    <DnDCompanionApp />
+  </CharacterProvider>
+);
+
+export default App;

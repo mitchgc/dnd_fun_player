@@ -109,8 +109,9 @@ const RollPopup = ({
             isHidden={isHidden}
             onClose={onClose}
             onReroll={() => {
-              onPhaseChange('rolling');
-              // The actual reroll logic would be handled by parent
+              if (rollPopup.selectedAction) {
+                onActionSelect(rollPopup.selectedAction);
+              }
             }}
           />
         )}

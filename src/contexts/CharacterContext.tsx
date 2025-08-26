@@ -223,7 +223,8 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
         return;
       }
 
-      // Fetch all characters first
+      // Fetch all characters (no user filter for personal D&D app)
+      // Fetch all characters (no user filter for personal D&D app)
       const { data: characters, error } = await supabase
         .from('dnd_characters')
         .select('*')

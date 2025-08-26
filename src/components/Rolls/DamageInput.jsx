@@ -93,36 +93,39 @@ const DamageInput = ({
             Defensive Abilities:
           </label>
           <div className="space-y-2">
-            {Object.entries(character.defensiveAbilities).map(([key, ability]) => {
-              const isSelected = damageInput.selectedDefenses.includes(key);
-              const isAvailable = ability.available !== false;
-              
-              return (
-                <button
-                  key={key}
-                  disabled={!isAvailable}
-                  onClick={() => handleDefenseToggle(key)}
-                  className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-                    !isAvailable 
-                      ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
-                      : isSelected
-                        ? 'bg-blue-600 border-blue-500 text-white'
-                        : 'bg-gray-700 border-gray-600 text-white hover:border-blue-500 hover:bg-gray-600'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">{ability.icon}</span>
-                    <div>
-                      <div className="font-semibold">{ability.name}</div>
-                      <div className="text-sm text-gray-300">{ability.description}</div>
-                      {key === 'uncanny-dodge' && !isAvailable && (
-                        <div className="text-xs text-red-400">Already used this turn</div>
-                      )}
+            {(character?.dnd_character_abilities || [])
+              .filter(ability => ability?.name && (ability.ability_type === 'reaction' || ability.name.toLowerCase().includes('resistance') || ability.name.toLowerCase().includes('dodge')))
+              .map((ability) => {
+                const key = ability.name.toLowerCase().replace(/\s+/g, '-');
+                const isSelected = damageInput.selectedDefenses.includes(key);
+                const isAvailable = ability.uses_remaining > 0 || ability.uses_per_rest === null;
+                
+                return (
+                  <button
+                    key={ability.id}
+                    disabled={!isAvailable}
+                    onClick={() => handleDefenseToggle(key)}
+                    className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
+                      !isAvailable 
+                        ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-blue-600 border-blue-500 text-white'
+                          : 'bg-gray-700 border-gray-600 text-white hover:border-blue-500 hover:bg-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-2xl">🛡️</span>
+                      <div>
+                        <div className="font-semibold">{ability.name}</div>
+                        <div className="text-sm text-gray-300">{ability.description}</div>
+                        {!isAvailable && (
+                          <div className="text-xs text-red-400">No uses remaining</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
           </div>
         </div>
         
@@ -143,7 +146,7 @@ const DamageInput = ({
               <span className={`font-bold text-lg ${
                 currentHP - damageInput.finalDamage <= 0 ? 'text-red-400' : 'text-green-400'
               }`}>
-                {Math.max(0, currentHP - damageInput.finalDamage)}/{character.maxHP}
+                {Math.max(0, currentHP - damageInput.finalDamage)}/{character.max_hp}
               </span>
             </div>
           </div>
@@ -172,8 +175,8 @@ DamageInput.propTypes = {
     finalDamage: PropTypes.number.isRequired
   }).isRequired,
   character: PropTypes.shape({
-    maxHP: PropTypes.number.isRequired,
-    defensiveAbilities: PropTypes.object.isRequired
+    max_hp: PropTypes.number.isRequired,
+    dnd_character_abilities: PropTypes.array
   }).isRequired,
   currentHP: PropTypes.number.isRequired,
   isKeyboardOpen: PropTypes.bool.isRequired,

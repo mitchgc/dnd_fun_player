@@ -94,8 +94,8 @@ const RollResult = ({
         <div className="flex items-center justify-between">
           <span className="text-white font-medium">New HP:</span>
           <span className="text-2xl font-bold text-green-400">
-            {result.healType === 'long-rest' ? character.maxHP : 
-             `${Math.min(character.maxHP, result.finalHP || 0)}/${character.maxHP}`}
+            {result.healType === 'long-rest' ? character.max_hp : 
+             `${Math.min(character.max_hp, result.finalHP || 0)}/${character.max_hp}`}
           </span>
         </div>
       </div>
