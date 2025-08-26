@@ -9,18 +9,11 @@ const hasValidCredentials = supabaseUrl && supabaseAnonKey &&
   supabaseUrl.startsWith('https://') && 
   supabaseAnonKey.startsWith('eyJ')
 
-// Add detailed validation logging
-console.log('Supabase validation:', {
-  hasUrl: !!supabaseUrl,
-  hasKey: !!supabaseAnonKey,
-  urlStartsWithHttps: supabaseUrl?.startsWith('https://'),
-  keyStartsWithEyJ: supabaseAnonKey?.startsWith('eyJ'),
-  finalResult: hasValidCredentials
-});
-
 if (!hasValidCredentials) {
   console.warn('Supabase not configured properly. Collaborative features will be disabled.');
   console.warn('To enable collaborative features, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file');
+} else {
+  console.log('✅ Supabase configured successfully');
 }
 
 // Create supabase client only if we have valid credentials
