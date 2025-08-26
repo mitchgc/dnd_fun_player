@@ -15,6 +15,7 @@ import { CharacterProvider, useCharacter } from './contexts/CharacterContext';
 // Import custom hooks
 import { useCharacterState } from './hooks/useCharacterState';
 import { useDiceRolls } from './hooks/useDiceRolls';
+import { useAuth } from './hooks/useAuth';
 
 // Helper function to calculate ability modifier
 const calcModifier = (score) => Math.floor((score - 10) / 2);
@@ -23,6 +24,22 @@ const calcModifier = (score) => Math.floor((score - 10) / 2);
 const calcProficiencyBonus = (level) => Math.ceil(level / 4) + 1;
 
 const DnDCompanionApp = () => {
+  // Initialize authentication
+  const { user, loading: authLoading, isLocalMode } = useAuth();
+  console.log('🔐 Auth status:', { user: user ? 'authenticated' : 'not authenticated', authLoading, isLocalMode });
+  
+  // Show loading screen while authentication is in progress
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-white text-lg">Initializing...</p>
+        </div>
+      </div>
+    );
+  }
+  
   // Use CharacterContext for all character data
   const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
   
