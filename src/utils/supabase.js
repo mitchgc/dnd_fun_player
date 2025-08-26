@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Supabase configuration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Supabase configuration - support multiple environment variable formats
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 
+                   import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 
+                   import.meta.env.SUPABASE_URL
+
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 
+                       import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+                       import.meta.env.SUPABASE_ANON_KEY
 
 // Check if we have valid Supabase credentials
 const hasValidCredentials = supabaseUrl && supabaseAnonKey && 
