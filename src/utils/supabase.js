@@ -1,5 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
+// Debug environment variables
+console.log('🔍 Environment variables check:', {
+  VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_URL: import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
+  SUPABASE_URL: import.meta.env.SUPABASE_URL,
+  VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Present' : 'Missing',
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Present' : 'Missing',
+  SUPABASE_ANON_KEY: import.meta.env.SUPABASE_ANON_KEY ? 'Present' : 'Missing',
+  MODE: import.meta.env.MODE,
+  PROD: import.meta.env.PROD
+});
+
 // Supabase configuration - support multiple environment variable formats
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 
                    import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 
@@ -8,6 +20,11 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ||
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 
                        import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
                        import.meta.env.SUPABASE_ANON_KEY
+
+console.log('🔍 Selected values:', {
+  supabaseUrl: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'Missing',
+  supabaseAnonKey: supabaseAnonKey ? 'Present' : 'Missing'
+});
 
 // Check if we have valid Supabase credentials
 const hasValidCredentials = supabaseUrl && supabaseAnonKey && 
