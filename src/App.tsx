@@ -28,6 +28,9 @@ const DnDCompanionApp = () => {
   const { user, loading: authLoading, isLocalMode } = useAuth();
   console.log('🔐 Auth status:', { user: user ? 'authenticated' : 'not authenticated', authLoading, isLocalMode });
   
+  // Use CharacterContext for all character data (must be called before any early returns)
+  const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
+  
   // Show loading screen while authentication is in progress
   if (authLoading) {
     return (
@@ -39,9 +42,6 @@ const DnDCompanionApp = () => {
       </div>
     );
   }
-  
-  // Use CharacterContext for all character data
-  const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
   
   // Local state for UI management
   const [isHidden, setIsHidden] = useState(false);
