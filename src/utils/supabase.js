@@ -14,6 +14,16 @@ if (!hasValidCredentials) {
   console.warn('To enable collaborative features, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file');
 } else {
   console.log('✅ Supabase configured successfully');
+  
+  // Test connection in production
+  if (import.meta.env.PROD) {
+    console.log('🔍 Testing production connection...');
+    supabase.from('dnd_journals').select('count').then(result => {
+      console.log('📊 Connection test result:', result.error ? `❌ ${result.error.message}` : '✅ Connection successful');
+    }).catch(err => {
+      console.error('🚨 Connection test failed:', err);
+    });
+  }
 }
 
 // Create supabase client only if we have valid credentials
