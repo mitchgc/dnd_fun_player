@@ -30,21 +30,31 @@ const DnDCompanionApp = () => {
   // Use CharacterContext for all character data (must be called before any early returns)
   const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
   
+  // Memoize auth status to prevent reference changes causing re-renders
+  const authStatus = React.useMemo(() => ({
+    user: user ? 'authenticated' : 'not authenticated', 
+    authLoading, 
+    isLocalMode
+  }), [user, authLoading, isLocalMode]);
+  
   // Memoize auth status logging to prevent excessive re-renders
   React.useEffect(() => {
-    console.log('🔐 Auth status:', { user: user ? 'authenticated' : 'not authenticated', authLoading, isLocalMode });
-  }, [user, authLoading, isLocalMode]);
+    console.log('🔐 Auth status:', authStatus);
+  }, [authStatus]);
+  
+  // Memoize loading component to prevent re-creation
+  const LoadingScreen = React.useMemo(() => (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-white text-lg">Initializing...</p>
+      </div>
+    </div>
+  ), []);
   
   // Show loading screen while authentication is in progress
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-white text-lg">Initializing...</p>
-        </div>
-      </div>
-    );
+    return LoadingScreen;
   }
   
   // Local state for UI management
