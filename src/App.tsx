@@ -26,10 +26,14 @@ const calcProficiencyBonus = (level) => Math.ceil(level / 4) + 1;
 const DnDCompanionApp = () => {
   // Initialize authentication
   const { user, loading: authLoading, isLocalMode } = useAuth();
-  console.log('🔐 Auth status:', { user: user ? 'authenticated' : 'not authenticated', authLoading, isLocalMode });
   
   // Use CharacterContext for all character data (must be called before any early returns)
   const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
+  
+  // Memoize auth status logging to prevent excessive re-renders
+  React.useEffect(() => {
+    console.log('🔐 Auth status:', { user: user ? 'authenticated' : 'not authenticated', authLoading, isLocalMode });
+  }, [user, authLoading, isLocalMode]);
   
   // Show loading screen while authentication is in progress
   if (authLoading) {
