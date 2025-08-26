@@ -210,15 +210,20 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
   // Fetch user's characters from Supabase
   const fetchCharacters = useCallback(async () => {
     if (!supabase) {
+      console.warn('📦 Supabase not configured for character loading');
       dispatch({ type: ActionTypes.SET_ERROR, payload: 'Supabase not configured' });
       return;
     }
 
+    console.log('🔍 Fetching characters...');
     dispatch({ type: ActionTypes.SET_LOADING, payload: true });
     
     try {
       const user = await getCurrentUser();
+      console.log('👤 Character loading - User check:', user ? 'authenticated' : 'not authenticated');
+      
       if (!user) {
+        console.error('❌ User not authenticated for character loading');
         dispatch({ type: ActionTypes.SET_ERROR, payload: 'User not authenticated' });
         return;
       }

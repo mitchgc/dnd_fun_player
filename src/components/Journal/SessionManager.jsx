@@ -15,6 +15,13 @@ export default function SessionManager({ onSessionReady, user }) {
       return;
     }
 
+    if (!user || !user.id) {
+      console.error('User not authenticated:', user);
+      setError('Authentication required. Please refresh the page and try again.');
+      return;
+    }
+
+    console.log('🎯 Creating session with user:', user);
     setLoading(true);
     setError('');
 
