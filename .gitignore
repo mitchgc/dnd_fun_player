@@ -10,9 +10,10 @@
 
 # Production
 /build
+/dist
 
-# Misc
-.DS_Store
+# Environment files
+.env
 .env.local
 .env.development.local
 .env.test.local
@@ -28,8 +29,10 @@ yarn-error.log*
 .idea/
 *.swp
 *.swo
+.qoder/
 
 # OS generated files
+.DS_Store
 Thumbs.db
 
 # Runtime data
@@ -43,3 +46,9 @@ pids
 
 # ESLint cache
 .eslintcache
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Misc
+html/

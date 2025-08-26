@@ -1,9 +1,222 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-dnd-red: #dc2626;
+  --color-dnd-blue: #2563eb;
+  --color-dnd-purple-50: #faf5ff;
+  --color-dnd-purple-100: #f3e8ff;
+  --color-dnd-purple-200: #e9d5ff;
+  --color-dnd-purple-300: #d8b4fe;
+  --color-dnd-purple-400: #c084fc;
+  --color-dnd-purple-500: #a855f7;
+  --color-dnd-purple-600: #9333ea;
+  --color-dnd-purple-700: #7c3aed;
+  --color-dnd-purple-800: #6b21a8;
+  --color-dnd-purple-900: #581c87;
+  --color-dnd-purple-950: #3b0764;
+  --color-dnd-green: #16a34a;
+  --color-dnd-yellow: #ca8a04;
+  --color-dnd-pink: #db2777;
+  
+  --font-family-inter: Inter, sans-serif;
+  
+  --animate-bounce-gentle: bounceGentle 2s infinite;
+  --animate-fade-in: fadeIn 0.5s ease-in-out;
+  --animate-slide-in: slideIn 0.3s ease-out;
+  --animate-wiggle: wiggle 1s ease-in-out infinite;
+  --animate-glow: glow 1s ease-in-out infinite alternate;
+  --animate-stealth-shine: stealthShine 3s infinite;
+  --animate-damage-pop: damagePopUp 1s ease-out;
+  --animate-emoji-pop: emojiPop 0.6s ease-out;
+  --animate-sparkle: sparkle 2s infinite;
+  --animate-roll-bounce: rollBounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --animate-success-pulse: successPulse 2s ease-in-out infinite;
+  --animate-dice-tumble: diceTumble 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-dice-settle: diceSettle 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --animate-dice-anticipation: diceAnticipation 0.3s ease-in-out;
+  --animate-critical-explosion: criticalExplosion 0.8s ease-out;
+  --animate-critical-glow: criticalGlow 2s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-dice-spin-3d: diceSpin3D 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes bounceGentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes wiggle {
+  0%, 7%, 14%, 21%, 28%, 35%, 42%, 49%, 56%, 63%, 70% { transform: rotate(0deg); }
+  3.5%, 10.5%, 17.5%, 24.5%, 31.5%, 38.5%, 45.5%, 52.5%, 59.5%, 66.5% { transform: rotate(-1deg); }
+  7%, 14%, 21%, 28%, 35%, 42%, 49%, 56%, 63%, 70%, 77% { transform: rotate(1deg); }
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 20px rgba(251, 191, 36, 0.6); }
+  to { box-shadow: 0 0 30px rgba(251, 191, 36, 0.8); }
+}
+
+@keyframes stealthShine {
+  0% { transform: rotate(0deg) translateX(-100%); }
+  100% { transform: rotate(0deg) translateX(100%); }
+}
+
+@keyframes damagePopUp {
+  0% { opacity: 0; transform: translateY(20px) scale(0.8); }
+  50% { opacity: 1; transform: translateY(-10px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-30px) scale(1); }
+}
+
+@keyframes emojiPop {
+  0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+  50% { transform: scale(1.3) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(180deg); }
+}
+
+@keyframes rollBounce {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(90deg) scale(1.1); }
+  50% { transform: rotate(180deg) scale(1); }
+  75% { transform: rotate(270deg) scale(1.1); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes successPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes diceTumble {
+  0% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(0px); }
+  25% { transform: perspective(1000px) rotateX(90deg) rotateY(180deg) rotateZ(45deg) translateY(-20px); }
+  50% { transform: perspective(1000px) rotateX(180deg) rotateY(360deg) rotateZ(90deg) translateY(-10px); }
+  75% { transform: perspective(1000px) rotateX(270deg) rotateY(540deg) rotateZ(135deg) translateY(-5px); }
+  100% { transform: perspective(1000px) rotateX(360deg) rotateY(720deg) rotateZ(180deg) translateY(0px); }
+}
+
+@keyframes diceSettle {
+  0% { transform: scale(1) translateY(0px) rotateZ(0deg); }
+  25% { transform: scale(0.95) translateY(2px) rotateZ(1deg); }
+  50% { transform: scale(1.02) translateY(-1px) rotateZ(-0.5deg); }
+  75% { transform: scale(0.98) translateY(0.5px) rotateZ(0.2deg); }
+  100% { transform: scale(1) translateY(0px) rotateZ(0deg); }
+}
+
+@keyframes diceAnticipation {
+  0% { transform: scale(1) rotateZ(0deg); }
+  25% { transform: scale(1.05) rotateZ(-2deg); }
+  50% { transform: scale(0.95) rotateZ(2deg); }
+  75% { transform: scale(1.02) rotateZ(-1deg); }
+  100% { transform: scale(1) rotateZ(0deg); }
+}
+
+@keyframes criticalExplosion {
+  0% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0px #fbbf24); }
+  30% { transform: scale(1.2); filter: brightness(1.5) drop-shadow(0 0 20px #fbbf24); }
+  60% { transform: scale(1.1); filter: brightness(1.3) drop-shadow(0 0 15px #fbbf24); }
+  100% { transform: scale(1); filter: brightness(1.1) drop-shadow(0 0 8px #fbbf24); }
+}
+
+@keyframes criticalGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(251, 191, 36, 0.5); }
+  50% { box-shadow: 0 0 25px rgba(251, 191, 36, 0.8), 0 0 35px rgba(251, 191, 36, 0.3); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes diceSpin3D {
+  0% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1); }
+  50% { transform: perspective(1000px) rotateX(180deg) rotateY(180deg) scale(1.1); }
+  100% { transform: perspective(1000px) rotateX(360deg) rotateY(360deg) scale(1); }
+}
 
 /* Custom animations and styles for the D&D app */
 @layer utilities {
+  .touch-friendly {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+  
+  .no-select {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  .safe-area-inset {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  .hardware-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+  
+  .dice-container {
+    perspective: 1000px;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  
+  .dice-face {
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    will-change: transform, filter;
+  }
+  
+  .critical-hit {
+    filter: drop-shadow(0 0 12px #fbbf24) brightness(1.2);
+    animation: criticalGlow 2s ease-in-out infinite;
+  }
+  
+  .critical-miss {
+    filter: drop-shadow(0 0 8px #ef4444) brightness(0.8);
+  }
+  
+  .glass-morphism {
+    backdrop-filter: blur(16px) saturate(180%);
+    background-color: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.125);
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .reduced-motion {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
   .animate-fadeIn {
     animation: fadeIn 0.5s ease-in-out;
   }
