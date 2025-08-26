@@ -39,6 +39,13 @@
   --animate-shimmer: shimmer 2s linear infinite;
   --animate-float: float 3s ease-in-out infinite;
   --animate-dice-spin-3d: diceSpin3D 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --animate-panel-expand: panelExpand 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-panel-collapse: panelCollapse 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --animate-content-fade-in: contentFadeIn 0.3s ease-out 0.1s both;
+  --animate-content-fade-out: contentFadeOut 0.2s ease-in both;
+  --animate-arrow-spin: arrowSpin 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  --spacing-6: 1.5rem;
 }
 
 @keyframes bounceGentle {
@@ -103,11 +110,11 @@
 }
 
 @keyframes diceTumble {
-  0% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(0px); }
-  25% { transform: perspective(1000px) rotateX(90deg) rotateY(180deg) rotateZ(45deg) translateY(-20px); }
-  50% { transform: perspective(1000px) rotateX(180deg) rotateY(360deg) rotateZ(90deg) translateY(-10px); }
-  75% { transform: perspective(1000px) rotateX(270deg) rotateY(540deg) rotateZ(135deg) translateY(-5px); }
-  100% { transform: perspective(1000px) rotateX(360deg) rotateY(720deg) rotateZ(180deg) translateY(0px); }
+  0% { transform: /* perspective(1000px) */ rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(0px); }
+  25% { transform: /* perspective(1000px) */ rotateX(90deg) rotateY(180deg) rotateZ(45deg) translateY(-20px); }
+  50% { transform: /* perspective(1000px) */ rotateX(180deg) rotateY(360deg) rotateZ(90deg) translateY(-10px); }
+  75% { transform: /* perspective(1000px) */ rotateX(270deg) rotateY(540deg) rotateZ(135deg) translateY(-5px); }
+  100% { transform: /* perspective(1000px) */ rotateX(360deg) rotateY(720deg) rotateZ(180deg) translateY(0px); }
 }
 
 @keyframes diceSettle {
@@ -149,9 +156,66 @@
 }
 
 @keyframes diceSpin3D {
-  0% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1); }
-  50% { transform: perspective(1000px) rotateX(180deg) rotateY(180deg) scale(1.1); }
-  100% { transform: perspective(1000px) rotateX(360deg) rotateY(360deg) scale(1); }
+  0% { transform: /* perspective(1000px) */ rotateX(0deg) rotateY(0deg) scale(1); }
+  50% { transform: /* perspective(1000px) */ rotateX(180deg) rotateY(180deg) scale(1.1); }
+  100% { transform: /* perspective(1000px) */ rotateX(360deg) rotateY(360deg) scale(1); }
+}
+
+@keyframes panelExpand {
+  0% {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    max-height: 2000px;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes panelCollapse {
+  0% {
+    max-height: 2000px;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes contentFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(15px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes contentFadeOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+@keyframes arrowSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(180deg);
+  }
 }
 
 /* Custom animations and styles for the D&D app */
@@ -179,7 +243,7 @@
   }
   
   .hardware-accelerated {
-    transform: translateZ(0);
+    /* transform: translateZ(0); */
     will-change: transform;
     backface-visibility: hidden;
   }
@@ -192,7 +256,7 @@
   
   .dice-face {
     backface-visibility: hidden;
-    transform: translateZ(0);
+    /* transform: translateZ(0); */
     will-change: transform, filter;
   }
   
@@ -209,6 +273,12 @@
     backdrop-filter: blur(16px) saturate(180%);
     background-color: rgba(255, 255, 255, 0.75);
     border: 1px solid rgba(255, 255, 255, 0.125);
+  }
+  
+  /* Modern floating action button */
+  .fab-button {
+    position: fixed !important;
+    z-index: 10000 !important;
   }
   
   @media (prefers-reduced-motion: reduce) {
@@ -295,7 +365,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #EBF8FF 0%, #F3E8FF 50%, #FDF2F8 100%);
   min-height: 100vh;
-  overflow-x: hidden;
+  /* position: relative; */ /* DISABLED - This creates a containing block for position: fixed */
+  transform: none !important; /* FORCE RESET - Remove any transform that creates containing block */
 }
 
 /* iPad specific optimizations */

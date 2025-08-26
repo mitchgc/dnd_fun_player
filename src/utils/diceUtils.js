@@ -21,8 +21,8 @@ export const getWeaponStats = (weaponKey, isHidden, character) => {
   }
   
   // Hit range calculation
-  const minHit = 1 + weapon.attack;
-  const maxHit = 20 + weapon.attack;
+  const minHit = 1 + weapon.attackBonus;
+  const maxHit = 20 + weapon.attackBonus;
   
   return { minDamage, maxDamage, minHit, maxHit, hasAdvantage: isHidden };
 };
@@ -43,7 +43,7 @@ export const rollAttack = (selectedWeapon, isHidden, character, rollDice) => {
     attackRoll = rollDice(20);
   }
   
-  const totalAttack = attackRoll + weapon.attack;
+  const totalAttack = attackRoll + weapon.attackBonus;
   const isCritical = attackRoll === 20;
   
   let baseDamageRoll;

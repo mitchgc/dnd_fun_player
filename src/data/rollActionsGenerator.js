@@ -6,6 +6,7 @@
  */
 
 import { getAllSkillsData, SKILLS } from './skillsSystem.js';
+import { getAbilityModifier, getProficiencyBonus } from '../hooks/useCharacterData.js';
 
 // =============================================================================
 // ROLL ACTION GENERATION
@@ -56,7 +57,8 @@ const generateAttackActions = (character) => {
         damageType: weapon.damageType,
         range: weapon.range,
         properties: weapon.properties,
-        description: weapon.description || `Attack with ${weapon.name}`
+        description: weapon.description || `Attack with ${weapon.name}`,
+        diceType: 'd20'
       };
     })
     .sort((a, b) => b.modifier - a.modifier);
@@ -68,11 +70,27 @@ const generateAttackActions = (character) => {
  * @returns {Array} Array of skill actions
  */
 const generateSkillActions = (character) => {
+  if (!character.ability_scores) {
+    return [];
+  }
+
   return Object.keys(SKILLS).map(skillKey => {
     const skill = SKILLS[skillKey];
-    const modifier = character.skills[skillKey] || 0;
-    const isProficient = character.skillProficiencies?.includes(skillKey) || false;
-    const hasExpertise = character.skillExpertise?.includes(skillKey) || false;
+    const abilityScore = character.ability_scores[skill.ability] || 10;
+    const abilityMod = getAbilityModifier(abilityScore);
+    const profBonus = getProficiencyBonus(character.level || 1);
+    
+    const skillProficiencies = character.skillProficiencies || character.ability_scores?.skillProficiencies || [];
+    const skillExpertise = character.skillExpertise || character.ability_scores?.skillExpertise || [];
+    
+    const isProficient = skillProficiencies.includes(skillKey);
+    const hasExpertise = skillExpertise.includes(skillKey);
+    
+    // Calculate total modifier
+    let modifier = abilityMod;
+    if (isProficient) {
+      modifier += hasExpertise ? (profBonus * 2) : profBonus;
+    }
     
     return {
       id: skillKey.replace(/([A-Z])/g, '-$1').toLowerCase(),
@@ -84,7 +102,8 @@ const generateSkillActions = (character) => {
       ability: skill.ability,
       category: skill.category,
       icon: skill.icon,
-      description: skill.description
+      description: skill.description,
+      diceType: 'd20'
     };
   }).sort((a, b) => b.modifier - a.modifier);
 };
@@ -95,16 +114,26 @@ const generateSkillActions = (character) => {
  * @returns {Array} Array of ability check actions
  */
 const generateAbilityActions = (character) => {
+  if (!character.ability_scores) {
+    return [];
+  }
+
   const abilities = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
   
-  return abilities.map(ability => ({
-    id: ability,
-    name: `${ability.charAt(0).toUpperCase() + ability.slice(1)} Check`,
-    modifier: character.abilityModifiers[ability],
-    type: 'ability',
-    ability,
-    description: `Raw ${ability} ability check`
-  })).sort((a, b) => b.modifier - a.modifier);
+  return abilities.map(ability => {
+    const abilityScore = character.ability_scores[ability] || 10;
+    const modifier = getAbilityModifier(abilityScore);
+    
+    return {
+      id: ability,
+      name: `${ability.charAt(0).toUpperCase() + ability.slice(1)} Check`,
+      modifier,
+      type: 'ability',
+      ability,
+      description: `Raw ${ability} ability check`,
+      diceType: 'd20'
+    };
+  }).sort((a, b) => b.modifier - a.modifier);
 };
 
 /**
@@ -113,17 +142,31 @@ const generateAbilityActions = (character) => {
  * @returns {Array} Array of saving throw actions
  */
 const generateSavingThrowActions = (character) => {
+  if (!character.ability_scores) {
+    return [];
+  }
+
   const abilities = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+  const savingThrowProficiencies = character.savingThrowProficiencies || character.ability_scores?.savingThrowProficiencies || [];
+  const profBonus = getProficiencyBonus(character.level || 1);
   
-  return abilities.map(ability => ({
-    id: `${ability}-save`,
-    name: `${ability.charAt(0).toUpperCase() + ability.slice(1)} Save`,
-    modifier: character.savingThrows[ability],
-    type: 'save',
-    ability,
-    proficient: character.savingThrowProficiencies?.includes(ability) || false,
-    description: `${ability.charAt(0).toUpperCase() + ability.slice(1)} saving throw`
-  })).sort((a, b) => b.modifier - a.modifier);
+  return abilities.map(ability => {
+    const abilityScore = character.ability_scores[ability] || 10;
+    const abilityMod = getAbilityModifier(abilityScore);
+    const isProficient = savingThrowProficiencies.includes(ability);
+    const modifier = abilityMod + (isProficient ? profBonus : 0);
+    
+    return {
+      id: `${ability}-save`,
+      name: `${ability.charAt(0).toUpperCase() + ability.slice(1)} Save`,
+      modifier,
+      type: 'save',
+      ability,
+      proficient: isProficient,
+      description: `${ability.charAt(0).toUpperCase() + ability.slice(1)} saving throw`,
+      diceType: 'd20'
+    };
+  }).sort((a, b) => b.modifier - a.modifier);
 };
 
 /**
@@ -132,27 +175,48 @@ const generateSavingThrowActions = (character) => {
  * @returns {Array} Array of combat actions
  */
 const generateCombatActions = (character) => {
+  if (!character.ability_scores) {
+    return [];
+  }
+
+  const dexScore = character.ability_scores.dexterity || 10;
+  const conScore = character.ability_scores.constitution || 10;
+  const dexMod = getAbilityModifier(dexScore);
+  const conMod = getAbilityModifier(conScore);
+  
+  const savingThrowProficiencies = character.savingThrowProficiencies || character.ability_scores?.savingThrowProficiencies || [];
+  const profBonus = getProficiencyBonus(character.level || 1);
+  const isConProficient = savingThrowProficiencies.includes('constitution');
+  const concentrationMod = conMod + (isConProficient ? profBonus : 0);
+  
+  // Add initiative bonus if character has it
+  const initiativeBonus = character.initiative_bonus || 0;
+  const initiativeMod = dexMod + initiativeBonus;
+
   return [
     {
       id: 'initiative',
       name: 'Initiative',
-      modifier: character.abilityModifiers.dexterity,
+      modifier: initiativeMod,
       type: 'initiative',
-      description: 'Roll for turn order in combat'
+      description: 'Roll for turn order in combat',
+      diceType: 'd20'
     },
     {
       id: 'death-save',
       name: 'Death Saving Throw',
       modifier: 0,
       type: 'death-save',
-      description: 'Stabilize when dying (DC 10)'
+      description: 'Stabilize when dying (DC 10)',
+      diceType: 'd20'
     },
     {
       id: 'concentration',
       name: 'Concentration Save',
-      modifier: character.savingThrows.constitution,
+      modifier: concentrationMod,
       type: 'concentration',
-      description: 'Maintain concentration on spells'
+      description: 'Maintain concentration on spells',
+      diceType: 'd20'
     }
   ].sort((a, b) => b.modifier - a.modifier);
 };
@@ -174,7 +238,8 @@ const generateHealingActions = (character) => {
       type: 'healing',
       healType: 'short-rest',
       dice: `${hitDiceCount}${hitDie}`,
-      description: 'Roll Hit Dice to recover HP'
+      description: 'Roll Hit Dice to recover HP',
+      diceType: hitDie.replace('d', 'd') // This will be d8, d10, etc.
     },
     {
       id: 'long-rest',
@@ -182,7 +247,8 @@ const generateHealingActions = (character) => {
       modifier: 0,
       type: 'healing',
       healType: 'long-rest',
-      description: 'Recover all HP and reset abilities'
+      description: 'Recover all HP and reset abilities',
+      diceType: 'd20' // Placeholder for long rest
     },
     {
       id: 'superior-potion',
@@ -191,7 +257,8 @@ const generateHealingActions = (character) => {
       type: 'healing',
       healType: 'potion',
       dice: '8d4+8',
-      description: 'Roll 8d4+8 healing'
+      description: 'Roll 8d4+8 healing',
+      diceType: 'd4'
     },
     {
       id: 'greater-potion',
@@ -200,7 +267,8 @@ const generateHealingActions = (character) => {
       type: 'healing',
       healType: 'potion',
       dice: '4d4+4',
-      description: 'Roll 4d4+4 healing'
+      description: 'Roll 4d4+4 healing',
+      diceType: 'd4'
     },
     {
       id: 'basic-potion',
@@ -209,7 +277,8 @@ const generateHealingActions = (character) => {
       type: 'healing',
       healType: 'potion',
       dice: '2d4+2',
-      description: 'Roll 2d4+2 healing'
+      description: 'Roll 2d4+2 healing',
+      diceType: 'd4'
     },
     {
       id: 'custom-healing',
@@ -234,7 +303,8 @@ const generateUtilityActions = () => {
       modifier: 0, 
       type: 'raw', 
       dice: 100,
-      description: 'Roll for random percentile events'
+      description: 'Roll for random percentile events',
+      diceType: 'd100'
     },
     { 
       id: 'd20', 
@@ -242,7 +312,8 @@ const generateUtilityActions = () => {
       modifier: 0, 
       type: 'raw', 
       dice: 20,
-      description: 'Basic d20 roll without modifiers'
+      description: 'Basic d20 roll without modifiers',
+      diceType: 'd20'
     },
     { 
       id: 'd12', 
@@ -250,7 +321,8 @@ const generateUtilityActions = () => {
       modifier: 0, 
       type: 'raw', 
       dice: 12,
-      description: 'Roll a d12'
+      description: 'Roll a d12',
+      diceType: 'd12'
     },
     { 
       id: 'd10', 
@@ -258,7 +330,8 @@ const generateUtilityActions = () => {
       modifier: 0, 
       type: 'raw', 
       dice: 10,
-      description: 'Roll a d10'
+      description: 'Roll a d10',
+      diceType: 'd10'
     },
     { 
       id: 'd8', 
@@ -266,7 +339,8 @@ const generateUtilityActions = () => {
       modifier: 0, 
       type: 'raw', 
       dice: 8,
-      description: 'Roll a d8'
+      description: 'Roll a d8',
+      diceType: 'd8'
     },
     { 
       id: 'd6', 
@@ -274,7 +348,8 @@ const generateUtilityActions = () => {
       modifier: 0, 
       type: 'raw', 
       dice: 6,
-      description: 'Roll a d6'
+      description: 'Roll a d6',
+      diceType: 'd6'
     },
     { 
       id: 'd4', 
@@ -282,7 +357,8 @@ const generateUtilityActions = () => {
       modifier: 0, 
       type: 'raw', 
       dice: 4,
-      description: 'Roll a d4'
+      description: 'Roll a d4',
+      diceType: 'd4'
     },
     { 
       id: 'hide-toggle', 

@@ -34,24 +34,9 @@ export function useAuth() {
           setUser(currentUser);
           setIsLocalMode(false);
         } else {
-          // Sign in anonymously if no user
-          const newUser = await signInAnonymously();
-          if (newUser) {
-            setUser(newUser);
-            setIsLocalMode(false);
-          } else {
-            console.warn('Failed to authenticate with Supabase. Switching to local mode.');
-            // Fall back to local mode
-            const localUser = {
-              id: `local-user-${Date.now()}`,
-              email: 'local@example.com',
-              user_metadata: { display_name: 'Local User' },
-              isLocal: true
-            };
-            setUser(localUser);
-            setIsLocalMode(true);
-            setError(null); // Clear error since we're in local mode
-          }
+          // Don't auto-sign in, wait for user to choose player
+          setUser(null);
+          setIsLocalMode(false);
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
@@ -84,34 +69,7 @@ export function useAuth() {
             setError(null);
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
-            // Try to re-authenticate, fall back to local mode if it fails
-            try {
-              const newUser = await signInAnonymously();
-              if (newUser) {
-                setUser(newUser);
-                setIsLocalMode(false);
-              } else {
-                console.warn('Failed to re-authenticate. Switching to local mode.');
-                const localUser = {
-                  id: `local-user-${Date.now()}`,
-                  email: 'local@example.com',
-                  user_metadata: { display_name: 'Local User' },
-                  isLocal: true
-                };
-                setUser(localUser);
-                setIsLocalMode(true);
-              }
-            } catch (err) {
-              console.warn('Re-authentication failed. Switching to local mode.');
-              const localUser = {
-                id: `local-user-${Date.now()}`,
-                email: 'local@example.com',
-                user_metadata: { display_name: 'Local User' },
-                isLocal: true
-              };
-              setUser(localUser);
-              setIsLocalMode(true);
-            }
+            setIsLocalMode(false);
           }
         }
       );

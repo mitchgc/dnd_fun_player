@@ -11,14 +11,15 @@ const hasValidCredentials = supabaseUrl && supabaseAnonKey &&
 
 if (!hasValidCredentials) {
   console.warn('Supabase not configured properly. Collaborative features will be disabled.');
-  console.warn('To enable collaborative features, set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY in your .env file');
+  console.warn('To enable collaborative features, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file');
 }
 
 // Create supabase client only if we have valid credentials
 export const supabase = hasValidCredentials ? createClient(supabaseUrl, supabaseAnonKey) : null
 export const isSupabaseConfigured = hasValidCredentials
 
-// Authentication helpers
+
+// Authentication helpers - creates a temporary user account
 export const signInAnonymously = async () => {
   if (!supabase) {
     console.warn('Supabase not configured. Anonymous sign-in not available.');
@@ -26,15 +27,25 @@ export const signInAnonymously = async () => {
   }
   
   try {
-    const { data, error } = await supabase.auth.signInAnonymously()
+    // Create a temporary user with a random email and password
+    const tempEmail = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@temp.app`;
+    const tempPassword = Math.random().toString(36).substr(2, 15) + Math.random().toString(36).substr(2, 15);
+    
+    const { data, error } = await supabase.auth.signUp({
+      email: tempEmail,
+      password: tempPassword,
+    });
+    
     if (error) {
-      console.error('Error signing in anonymously:', error)
-      return null
+      console.error('Error creating guest user:', error);
+      return null;
     }
-    return data.user
+    
+    // Return the user immediately (email confirmation is disabled for this use case)
+    return data.user;
   } catch (error) {
-    console.error('Anonymous auth error:', error)
-    return null
+    console.error('Guest auth error:', error);
+    return null;
   }
 }
 

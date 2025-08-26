@@ -32,7 +32,7 @@ const TurnManager = ({
   };
 
   return (
-    <div className={`rounded-2xl shadow-xl border-2 transition-all duration-1000 ${
+    <div className={`rounded-2xl shadow-xl border-2 ${
       isHidden 
         ? 'bg-gradient-to-r from-gray-800 to-purple-900 border-purple-600'
         : 'bg-gradient-to-r from-gray-900 to-gray-800 border-gray-600'
@@ -53,7 +53,7 @@ const TurnManager = ({
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <div className={`transform transition-transform duration-300 ${
+          <div className={`transition-transform duration-300 ${
             turnCollapsed ? 'rotate-180' : ''
           }`}>
             ▼
@@ -61,8 +61,15 @@ const TurnManager = ({
         </div>
       </div>
 
-      {!turnCollapsed && (
-        <div className="space-y-6 p-6">
+      <div 
+        className={`grid transition-all duration-300 ease-in-out overflow-hidden ${
+          turnCollapsed 
+            ? 'grid-rows-[0fr] opacity-0' 
+            : 'grid-rows-[1fr] opacity-100'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="space-y-6 p-6">
           {/* Action Section */}
           <div className="bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-red-600">
             <div className="flex items-center justify-between mb-4">
@@ -188,8 +195,9 @@ const TurnManager = ({
             />
           </div>
         </div>
-      )}
+      </div>
     </div>
+  </div>
   );
 };
 

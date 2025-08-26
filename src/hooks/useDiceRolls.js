@@ -24,7 +24,7 @@ export const useDiceRolls = () => {
         { 
           name: 'Attack Roll', 
           dice: result.advantageRolls ? [`d20: ${result.advantageRolls[0]}`, `d20: ${result.advantageRolls[1]}`] : [`d20: ${result.attackRoll}`],
-          bonus: character.weapons[selectedWeapon].attack,
+          bonus: character.weapons[selectedWeapon].attackBonus,
           total: result.totalAttack,
           advantage: !!result.advantageRolls
         },

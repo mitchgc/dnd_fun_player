@@ -38,7 +38,7 @@ vi.mock('@react-spring/web', () => ({
 }));
 
 describe('CompactDiceAnimation', () => {
-  it('renders dice emoji when not rolling', () => {
+  it('renders dice shape when not rolling', () => {
     render(
       <CompactDiceAnimation
         diceType="d20"
@@ -47,7 +47,8 @@ describe('CompactDiceAnimation', () => {
       />
     );
 
-    expect(screen.getByText('⭐')).toBeInTheDocument();
+    // Check for SVG element instead of emoji
+    expect(document.querySelector('svg')).toBeInTheDocument();
   });
 
   it('shows rolling state with proper styling', () => {
@@ -59,8 +60,8 @@ describe('CompactDiceAnimation', () => {
       />
     );
 
-    expect(screen.getByTestId('motion-div')).toBeInTheDocument();
-    expect(screen.getByText('🎲')).toBeInTheDocument();
+    expect(screen.getAllByTestId('motion-div')[0]).toBeInTheDocument();
+    expect(document.querySelector('svg')).toBeInTheDocument();
   });
 
   it('displays result when provided', () => {
@@ -153,6 +154,7 @@ describe('CompactDiceAnimation', () => {
       />
     );
 
-    expect(screen.getByText('🔺')).toBeInTheDocument();
+    // Check for triangle shape (d4) - look for polygon element
+    expect(document.querySelector('polygon')).toBeInTheDocument();
   });
 });

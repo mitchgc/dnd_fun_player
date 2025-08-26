@@ -5,7 +5,7 @@ import { Sword, Shield, User, BookOpen, Sparkles } from 'lucide-react';
 import DefensivePanel from './components/Battle/DefensivePanel';
 import TurnManager from './components/Battle/TurnManager';
 import RollPopup from './components/Rolls/RollPopup';
-import CharacterDropdown from './components/Character/CharacterToggle';
+import CharacterToggle from './components/Character/CharacterToggle';
 
 import CollaborativeJournal from './components/Journal/CollaborativeJournal';
 
@@ -453,10 +453,11 @@ const DnDCompanionApp = () => {
           : 'bg-gray-800 border-gray-600'
       }`}>
         <div className="max-w-6xl mx-auto px-4">
-          <div className="flex justify-center space-x-8">
-            <button
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-8">
+              <button
               onClick={() => setActiveTab('battle')}
-              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
+              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 ${
                 activeTab === 'battle'
                   ? isHidden 
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
@@ -472,7 +473,7 @@ const DnDCompanionApp = () => {
 
             <button
               onClick={() => setActiveTab('stats')}
-              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
+              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 ${
                 activeTab === 'stats'
                   ? isHidden 
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
@@ -487,7 +488,7 @@ const DnDCompanionApp = () => {
             </button>
             <button
               onClick={() => setActiveTab('backstory')}
-              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
+              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 ${
                 activeTab === 'backstory'
                   ? isHidden 
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
@@ -502,7 +503,7 @@ const DnDCompanionApp = () => {
             </button>
             <button
               onClick={() => setActiveTab('journal')}
-              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
+              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 ${
                 activeTab === 'journal'
                   ? isHidden 
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
@@ -517,19 +518,18 @@ const DnDCompanionApp = () => {
               </svg>
               <span className="text-lg">Journal</span>
             </button>
+            </div>
+            
+            {/* Character Toggle in Navigation */}
+            <CharacterToggle
+              currentCharacterId={currentCharacterId}
+              switchCharacter={switchCharacter}
+              currentCharacter={character}
+              className="py-2"
+            />
           </div>
         </div>
       </nav>
-
-      {/* Character Toggle */}
-      <div className="max-w-6xl mx-auto px-4 py-4">
-        <CharacterToggle
-          currentCharacterId={currentCharacterId}
-          switchCharacter={switchCharacter}
-          currentCharacter={character}
-          className="mb-4"
-        />
-      </div>
 
       {/* Content */}
       <div className="max-w-6xl mx-auto">
