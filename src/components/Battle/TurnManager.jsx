@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Sword, Sparkles, Eye, EyeOff, Package } from 'lucide-react';
 import ActionButton from './ActionButton';
 import { getWeaponStats } from '../../utils/diceUtils';
+import { getActionGrantingAbilities } from '../../utils/resourceManager';
 
 const TurnManager = ({
   character,
@@ -17,19 +18,41 @@ const TurnManager = ({
   onDisengage,
   onUseItem,
   onResetTurn,
-  onUseBonusAction
+  onUseBonusAction,
+  onActionSelect
 }) => {
   const handleHideClick = () => {
     if (isHidden) {
       // If already hidden, just reveal without rolling
       onToggleHidden();
     } else {
-      // If not hidden, trigger stealth roll and use bonus action
-      const stealthAction = { id: 'stealth', name: 'Stealth', type: 'skill' };
-      // This would need to be connected to the roll system
-      onUseBonusAction(); // Mark bonus action as used
+      // If not hidden, trigger stealth roll through the roll modal
+      const stealthAction = { 
+        id: 'stealth', 
+        name: 'Stealth Check', 
+        type: 'skill',
+        ability: 'dexterity',
+        description: 'Hide from enemies',
+        diceType: 'd20',
+        modifier: Math.floor(((character?.ability_scores?.dexterity || 10) - 10) / 2)
+      };
+      onActionSelect(stealthAction);
     }
   };
+  
+  // Get ability-granted actions
+  const actionAbilities = character?.dnd_character_abilities && character?.dnd_character_resources ? 
+    getActionGrantingAbilities(character.dnd_character_abilities, character.dnd_character_resources)
+      .filter(a => a.ability_type === 'action') : [];
+      
+  const bonusActionAbilities = character?.dnd_character_abilities && character?.dnd_character_resources ? 
+    getActionGrantingAbilities(character.dnd_character_abilities, character.dnd_character_resources)
+      .filter(a => a.ability_type === 'bonus_action') : [];
+      
+  // Check if character has Cunning Action (gives Dash, Disengage, Hide as bonus actions)
+  const hasCunningAction = character?.dnd_character_abilities?.some(
+    ability => ability.ability_name === 'Cunning Action'
+  );
 
   return (
     <div className={`rounded-2xl shadow-xl border-2 ${
@@ -87,14 +110,29 @@ const TurnManager = ({
             </div>
             
             <div className="grid grid-cols-4 gap-3">
-              {character?.dnd_character_weapons?.length > 0 ? 
+              {/* Weapon attacks */}
+              {character?.dnd_character_weapons?.length > 0 && 
                 character.dnd_character_weapons.map((weapon) => {
                   const baseDamage = weapon.damage_dice || '1d6';
                   const damageBonus = weapon.damage_bonus || 0;
                   return (
                     <ActionButton
                       key={weapon.name}
-                      onClick={() => onAttack(weapon.name)}
+                      onClick={() => {
+                        const attackAction = {
+                          id: `${weapon.name.toLowerCase().replace(/\s+/g, '-')}-attack`,
+                          name: `${weapon.name} Attack`,
+                          modifier: weapon.attack_bonus || 0,
+                          type: 'attack',
+                          weapon: weapon.name,
+                          damage: weapon.damage_dice,
+                          damageBonus: weapon.damage_bonus || 0,
+                          damageType: weapon.damage_type,
+                          description: weapon.description || `Attack with ${weapon.name}`,
+                          diceType: 'd20'
+                        };
+                        onActionSelect(attackAction);
+                      }}
                       disabled={turnState.actionUsed}
                       variant="danger"
                       loading={buttonStates[`attack-${weapon.name}`]}
@@ -104,11 +142,43 @@ const TurnManager = ({
                     />
                   );
                 })
-                : 
-                <div className="col-span-4 text-gray-400 text-center py-4">
-                  No weapons available
-                </div>
               }
+              
+              {/* Ability-granted actions */}
+              {actionAbilities.map(ability => (
+                <ActionButton
+                  key={ability.id}
+                  onClick={() => {
+                    // Determine spell type based on ability data
+                    const isAttackSpell = ability.description?.toLowerCase().includes('attack') || 
+                                         ability.name?.toLowerCase().includes('blast');
+                    const isSaveSpell = ability.description?.toLowerCase().includes('save') ||
+                                       ability.name?.toLowerCase().includes('spray');
+                    
+                    const abilityAction = {
+                      id: ability.id,
+                      name: ability.name,
+                      type: isSaveSpell ? 'spell_save' : (isAttackSpell ? 'spell_attack' : 'ability'),
+                      description: ability.description,
+                      diceType: 'd20',
+                      ability_data: ability.ability_data || {}
+                    };
+                    onActionSelect(abilityAction);
+                  }}
+                  disabled={turnState.actionUsed}
+                  variant="primary"
+                  icon={<span>{ability.icon}</span>}
+                  title={ability.name}
+                  subtitle={ability.current_uses < 999 ? `${ability.current_uses}/${ability.max_uses}` : 'Cantrip'}
+                />
+              ))}
+              
+              {/* No attacks message */}
+              {(!character?.dnd_character_weapons?.length && !actionAbilities.length) && (
+                <div className="col-span-4 text-gray-400 text-center py-4">
+                  No attacks available
+                </div>
+              )}
             </div>
             
             <div className={`mt-4 text-sm bg-gray-800 p-4 rounded-xl border ${isHidden ? 'text-purple-300 border-purple-600' : 'text-red-300 border-red-600'}`}>
@@ -141,6 +211,7 @@ const TurnManager = ({
             </div>
             
             <div className="grid grid-cols-4 gap-3">
+              {/* Hide is always available */}
               <ActionButton
                 onClick={handleHideClick}
                 disabled={!isHidden && turnState.bonusActionUsed}
@@ -149,22 +220,30 @@ const TurnManager = ({
                 title={isHidden ? 'Reveal' : 'Hide'}
               />
               
-              <ActionButton
-                onClick={onBonusActionDash}
-                disabled={turnState.bonusActionUsed}
-                variant="secondary"
-                icon={<span>💨</span>}
-                title="Dash"
-              />
+              {/* Dash and Disengage only for characters with Cunning Action */}
+              {hasCunningAction && (
+                <>
+                  <ActionButton
+                    onClick={onBonusActionDash}
+                    disabled={turnState.bonusActionUsed}
+                    variant="secondary"
+                    icon={<span>💨</span>}
+                    title="Dash"
+                    subtitle="Cunning Action"
+                  />
+                  
+                  <ActionButton
+                    onClick={onDisengage}
+                    disabled={turnState.bonusActionUsed}
+                    variant="secondary"
+                    icon={<span>🏃</span>}
+                    title="Disengage"
+                    subtitle="Cunning Action"
+                  />
+                </>
+              )}
               
-              <ActionButton
-                onClick={onDisengage}
-                disabled={turnState.bonusActionUsed}
-                variant="secondary"
-                icon={<span>🏃</span>}
-                title="Disengage"
-              />
-              
+              {/* Use Item is always available */}
               <ActionButton
                 onClick={onUseItem}
                 disabled={turnState.bonusActionUsed}
@@ -173,6 +252,32 @@ const TurnManager = ({
                 title="Use Item"
               />
             </div>
+            
+            {/* Ability-granted bonus actions */}
+            {bonusActionAbilities.length > 0 && (
+              <div className="mt-3">
+                <div className="text-xs text-gray-400 uppercase mb-2">Special Abilities</div>
+                <div className="grid grid-cols-4 gap-3">
+                  {bonusActionAbilities.map(ability => (
+                    <ActionButton
+                      key={ability.id}
+                      onClick={() => onActionSelect({
+                        id: ability.id,
+                        name: ability.name,
+                        type: 'ability',
+                        description: ability.description,
+                        uses: `${ability.current_uses}/${ability.max_uses}`
+                      })}
+                      disabled={turnState.bonusActionUsed || ability.current_uses === 0}
+                      variant="teal"
+                      icon={<span>{ability.icon}</span>}
+                      title={ability.name}
+                      subtitle={`${ability.current_uses}/${ability.max_uses}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             
             <div className="mt-4 text-sm text-purple-300 bg-gray-800 p-4 rounded-xl border border-purple-600">
               💡 <strong>Tip:</strong> You can use a bonus action before or after your action
@@ -215,8 +320,11 @@ const TurnManager = ({
 TurnManager.propTypes = {
   character: PropTypes.shape({
     dnd_character_weapons: PropTypes.array,
+    dnd_character_abilities: PropTypes.array,
+    dnd_character_resources: PropTypes.array,
     level: PropTypes.number,
-    character_class: PropTypes.string
+    character_class: PropTypes.string,
+    ability_scores: PropTypes.object
   }),
   turnState: PropTypes.shape({
     actionUsed: PropTypes.bool.isRequired,
@@ -233,7 +341,8 @@ TurnManager.propTypes = {
   onDisengage: PropTypes.func.isRequired,
   onUseItem: PropTypes.func.isRequired,
   onResetTurn: PropTypes.func.isRequired,
-  onUseBonusAction: PropTypes.func.isRequired
+  onUseBonusAction: PropTypes.func.isRequired,
+  onActionSelect: PropTypes.func.isRequired
 };
 
 export default TurnManager;

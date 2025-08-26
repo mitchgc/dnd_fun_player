@@ -11,6 +11,8 @@ const RollHistory = ({
   const getIconForRollType = (type) => {
     switch (type) {
       case 'attack': return <Target className="text-red-400" size={16} />;
+      case 'spell_attack': return <Sparkles className="text-purple-400" size={16} />;
+      case 'spell_save': return <Sparkles className="text-orange-400" size={16} />;
       case 'skill': return <Eye className="text-green-400" size={16} />;
       case 'ability': return <Shield className="text-blue-400" size={16} />;
       case 'save': return <Heart className="text-yellow-400" size={16} />;
@@ -54,10 +56,14 @@ const RollHistory = ({
                     <div className="flex flex-col">
                       <span className="font-medium text-white text-sm">{log.name}</span>
                       <span className="text-xs text-gray-400">
-                        {log.type === 'attack' ? (
-                          `Attack = ${log.dice[0]?.total || 0}, Damage = ${log.dice[1]?.total || 0}`
+                        {(log.type === 'attack' || log.type === 'spell_attack' || log.type === 'spell_save') ? (
+                          log.dice.length >= 2 ? (
+                            `Attack = ${log.dice[0]?.total || 0} [${log.dice[0]?.dice?.join(', ') || ''}], Damage = ${log.dice[1]?.total || 0} [${log.dice[1]?.dice?.join(', ') || ''}]`
+                          ) : (
+                            `${log.dice[0]?.name || 'Roll'} = ${log.dice[0]?.total || 0} [${log.dice[0]?.dice?.join(', ') || ''}]`
+                          )
                         ) : (
-                          `= ${log.dice[0]?.total || 0}`
+                          `= ${log.dice[0]?.total || 0} [${log.dice[0]?.dice?.join(', ') || ''}]`
                         )}
                       </span>
                     </div>
@@ -75,7 +81,7 @@ const RollHistory = ({
                       <div className="flex items-center space-x-1">
                         {diceGroup.dice.map((die, dieIndex) => (
                           <span key={dieIndex} className="bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono">
-                            {die.replace('d20: ', '').replace('d6: ', '').replace('d8: ', '')}
+                            {die}
                           </span>
                         ))}
                         {diceGroup.bonus > 0 && <span className="text-xs text-gray-400">+{diceGroup.bonus}</span>}

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { rollDice, rollAttack } from '../utils/diceUtils';
-import { character } from '../data/index';
+import { getPassiveDamageBonuses } from '../utils/resourceManager';
 
 export const useDiceRolls = () => {
   const [rollLogs, setRollLogs] = useState([]);
@@ -12,9 +12,21 @@ export const useDiceRolls = () => {
     setRollLogs(prev => [entry, ...prev]); // Add to beginning for newest first
   }, []);
 
-  // Enhanced attack rolling
-  const performAttackRoll = useCallback((selectedWeapon, isHidden) => {
+  // Enhanced attack rolling (character will be passed as parameter)
+  const performAttackRoll = useCallback((selectedWeapon, isHidden, character) => {
+    if (!character) {
+      console.error('Character data required for attack roll');
+      return null;
+    }
     const result = rollAttack(selectedWeapon, isHidden, character, rollDice);
+    
+    if (!result) {
+      console.error('Attack roll failed');
+      return null;
+    }
+
+    const weapon = character.dnd_character_weapons?.find(w => w.name === selectedWeapon);
+    const damageBonus = weapon?.damage_bonus || 0;
 
     // Log the attack roll details
     logRoll({
@@ -24,27 +36,32 @@ export const useDiceRolls = () => {
         { 
           name: 'Attack Roll', 
           dice: result.advantageRolls ? [`d20: ${result.advantageRolls[0]}`, `d20: ${result.advantageRolls[1]}`] : [`d20: ${result.attackRoll}`],
-          bonus: character.weapons[selectedWeapon].attackBonus,
+          bonus: weapon?.attack_bonus || 0,
           total: result.totalAttack,
           advantage: !!result.advantageRolls
         },
         {
           name: 'Damage Roll',
           dice: [
-            `d${result.weaponDiceSize}: ${result.baseDamageRoll - 3}${result.isCritical ? ' (doubled for crit)' : ''}`
+            `d${result.weaponDiceSize}: ${result.baseDamageRoll - damageBonus}${result.isCritical ? ' (doubled for crit)' : ''}`
           ].concat(
-            result.sneakAttackRolls.length > 0 ? 
-              result.sneakAttackRolls.map((roll, i) => `d6: ${roll} (sneak attack${i >= character.sneakAttackDice && result.isCritical ? ' crit' : ''})`) 
+            result.conditionalDamageRolls?.length > 0 ? 
+              result.conditionalDamageRolls.map((roll, i) => {
+                const bonus = result.conditionalBonuses?.[0];
+                return `d6: ${roll} (${bonus?.name || 'conditional'}${result.isCritical ? ' crit' : ''})`;
+              }) 
               : []
           ),
-          bonus: 3, // DEX modifier
-          total: result.totalDamage
+          bonus: damageBonus,
+          total: result.totalDamage,
+          conditionalBonuses: result.conditionalBonuses
         }
       ],
       isCritical: result.isCritical,
       details: {
         advantage: !!result.advantageRolls,
-        sneakAttack: result.sneakAttackRolls.length > 0,
+        conditionalDamage: result.conditionalDamageRolls?.length > 0,
+        conditionalBonuses: result.conditionalBonuses,
         weapon: result.weapon
       }
     });
@@ -157,21 +174,124 @@ export const useDiceRolls = () => {
     }
   }, [logRoll]);
 
-  // Healing roll function
-  const performHealingRoll = useCallback((action, currentHP) => {
+  // Spell attack roll function (e.g., Eldritch Blast)
+  const performSpellAttack = useCallback((ability, isHidden, character) => {
+    if (!character || !ability) {
+      console.error('Character and ability data required for spell attack');
+      return null;
+    }
+    
+    const attackBonus = ability.ability_data?.attack_bonus || 0;
+    const baseDamage = ability.ability_data?.damage || '1d10';
+    const damageType = ability.ability_data?.damage_type || 'force';
+    const numBeams = ability.ability_data?.num_beams || 1;
+    
+    // Get passive damage bonuses (Agonizing Blast, etc.)
+    const damageBonuses = getPassiveDamageBonuses(
+      character.dnd_character_abilities || [], 
+      ability.ability_name, 
+      'spell'
+    );
+    
+    let attackRolls = [];
+    let damageRolls = [];
+    let totalDamage = 0;
+    let hits = 0;
+    
+    // Roll for each beam
+    for (let i = 0; i < numBeams; i++) {
+      const attackRoll = rollDice(20);
+      const attackTotal = attackRoll + attackBonus + (isHidden ? 0 : 0); // Could add advantage later
+      attackRolls.push({ roll: attackRoll, total: attackTotal });
+      
+      // Assume AC 15 for hit calculation (could be parameterized later)
+      const hits_target = attackTotal >= 15;
+      
+      if (hits_target) {
+        hits++;
+        
+        // Roll base damage
+        const damageRoll = rollDice(10); // d10 for Eldritch Blast
+        let beamDamage = damageRoll;
+        
+        // Apply passive damage bonuses
+        let bonusDescription = [];
+        for (const bonus of damageBonuses) {
+          beamDamage += bonus.damage;
+          bonusDescription.push(`+${bonus.damage} ${bonus.name}`);
+        }
+        
+        damageRolls.push({ 
+          roll: damageRoll, 
+          bonus: beamDamage - damageRoll,
+          total: beamDamage,
+          bonuses: bonusDescription
+        });
+        totalDamage += beamDamage;
+      }
+    }
+    
+    const result = {
+      type: 'spell_attack',
+      name: ability.ability_name,
+      attackRolls,
+      damageRolls,
+      totalDamage,
+      hits,
+      numBeams,
+      damageType,
+      damageBonuses: damageBonuses.map(b => b.name)
+    };
+    
+    // Log the spell attack
+    logRoll({
+      type: 'spell_attack',
+      name: ability.ability_name,
+      dice: attackRolls.map((attack, i) => ({
+        name: `Beam ${i + 1} Attack`,
+        dice: [`d20: ${attack.roll}`],
+        bonus: attackBonus,
+        total: attack.total,
+        hit: attack.total >= 15
+      })).concat(
+        damageRolls.map((damage, i) => ({
+          name: `Beam ${i + 1} Damage`,
+          dice: [`d10: ${damage.roll}`],
+          bonus: damage.bonus,
+          total: damage.total,
+          bonuses: damage.bonuses
+        }))
+      ),
+      details: {
+        totalDamage,
+        hits: `${hits}/${numBeams}`,
+        damageType,
+        bonuses: damageBonuses.map(b => b.name)
+      }
+    });
+    
+    return result;
+  }, [logRoll]);
+
+  // Healing roll function (character will be passed as parameter)
+  const performHealingRoll = useCallback((action, currentHP, character) => {
+    if (!character) {
+      console.error('Character data required for healing roll');
+      return null;
+    }
     let healingAmount = 0;
     let result;
     
     if (action.healType === 'long-rest') {
       // Long rest - full heal and reset abilities
-      healingAmount = character.maxHP - currentHP;
+      healingAmount = character.max_hp - currentHP;
       result = {
         type: 'healing',
         name: action.name,
         healingAmount,
         healType: 'long-rest',
         description: 'Fully restored HP and reset all abilities',
-        finalHP: character.maxHP
+        finalHP: character.max_hp
       };
     } else if (action.healType === 'short-rest') {
       // Short rest - roll hit dice (3d8 for level 5 rogue)
@@ -189,7 +309,7 @@ export const useDiceRolls = () => {
         healType: 'short-rest',
         hitDiceRolls,
         description: `Rolled ${hitDiceRolls.join(', ')} on 3d8`,
-        finalHP: Math.min(character.maxHP, currentHP + healingAmount)
+        finalHP: Math.min(character.max_hp, currentHP + healingAmount)
       };
     } else if (action.healType === 'potion') {
       // Roll potion dice
@@ -220,7 +340,7 @@ export const useDiceRolls = () => {
         healType: 'potion',
         potionRolls,
         description: `Rolled ${potionRolls.join(', ')} ${action.id === 'superior-potion' ? '+8' : '+2'}`,
-        finalHP: Math.min(character.maxHP, currentHP + healingAmount)
+        finalHP: Math.min(character.max_hp, currentHP + healingAmount)
       };
     } else if (action.healType === 'custom') {
       // Custom healing - this will be handled differently
@@ -263,6 +383,7 @@ export const useDiceRolls = () => {
   return {
     rollLogs,
     performAttackRoll,
+    performSpellAttack,
     performStandardRoll,
     performHealingRoll,
     logRoll,

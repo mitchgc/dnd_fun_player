@@ -17,12 +17,14 @@ import { CharacterProvider, useCharacter } from './contexts/CharacterContext';
 import { useCharacterState } from './hooks/useCharacterState';
 import { useDiceRolls } from './hooks/useDiceRolls';
 import { useAuth } from './hooks/useAuth';
+import { rollDice } from './utils/diceUtils';
 
 // Helper function to calculate ability modifier
 const calcModifier = (score) => Math.floor((score - 10) / 2);
 
 // Helper function to calculate proficiency bonus
 const calcProficiencyBonus = (level) => Math.ceil(level / 4) + 1;
+
 
 const DnDCompanionApp = () => {
   // Initialize authentication
@@ -93,6 +95,7 @@ const DnDCompanionApp = () => {
   const {
     rollLogs,
     performAttackRoll,
+    performSpellAttack,
     performStandardRoll,
     performHealingRoll,
     logRoll,
@@ -102,6 +105,7 @@ const DnDCompanionApp = () => {
   // Generate roll actions for the character from Supabase data - move before early return
   const rollActions = useMemo(() => {
     if (!activeCharacter) return { attacks: [], combat: [], saves: [], skills: [], abilities: [], healing: [], utility: [] };
+    
     
     const attacks = (activeCharacter.dnd_character_weapons || []).map(weapon => ({
       id: `${weapon.name.toLowerCase().replace(/\s+/g, '-')}-attack`,
@@ -142,6 +146,65 @@ const DnDCompanionApp = () => {
           diceType: 'd20'
         };
       });
+    
+    // Add all D&D skills
+    const skills = [
+      { id: 'acrobatics', name: 'Acrobatics', ability: 'dexterity', icon: '🤸' },
+      { id: 'animalHandling', name: 'Animal Handling', ability: 'wisdom', icon: '🐕' },
+      { id: 'arcana', name: 'Arcana', ability: 'intelligence', icon: '🔮' },
+      { id: 'athletics', name: 'Athletics', ability: 'strength', icon: '💪' },
+      { id: 'deception', name: 'Deception', ability: 'charisma', icon: '🎭' },
+      { id: 'history', name: 'History', ability: 'intelligence', icon: '📜' },
+      { id: 'insight', name: 'Insight', ability: 'wisdom', icon: '👁️' },
+      { id: 'intimidation', name: 'Intimidation', ability: 'charisma', icon: '😠' },
+      { id: 'investigation', name: 'Investigation', ability: 'intelligence', icon: '🔍' },
+      { id: 'medicine', name: 'Medicine', ability: 'wisdom', icon: '⚕️' },
+      { id: 'nature', name: 'Nature', ability: 'intelligence', icon: '🌿' },
+      { id: 'perception', name: 'Perception', ability: 'wisdom', icon: '👂' },
+      { id: 'performance', name: 'Performance', ability: 'charisma', icon: '🎪' },
+      { id: 'persuasion', name: 'Persuasion', ability: 'charisma', icon: '🤝' },
+      { id: 'religion', name: 'Religion', ability: 'intelligence', icon: '⛪' },
+      { id: 'sleightOfHand', name: 'Sleight of Hand', ability: 'dexterity', icon: '🎩' },
+      { id: 'stealth', name: 'Stealth', ability: 'dexterity', icon: '👤' },
+      { id: 'survival', name: 'Survival', ability: 'wisdom', icon: '🏕️' }
+    ].map(skill => {
+      const abilityMod = calcModifier(activeCharacter.ability_scores[skill.ability] || 10);
+      const profBonus = calcProficiencyBonus(activeCharacter.level || 1);
+      
+      // Check for skill proficiency/expertise in character abilities
+      const skillAbilities = activeCharacter.dnd_character_abilities || [];
+      const skillProficiency = skillAbilities.find(ability => 
+        ability.ability_data?.skill === skill.id && 
+        (ability.ability_data?.proficiency_type === 'proficiency' || ability.ability_data?.proficiency_type === 'expertise')
+      );
+      
+      let totalModifier = abilityMod;
+      let proficient = false;
+      let expertise = false;
+      
+      if (skillProficiency) {
+        proficient = true;
+        if (skillProficiency.ability_data?.proficiency_type === 'expertise') {
+          expertise = true;
+          totalModifier = abilityMod + (profBonus * 2); // Double proficiency for expertise
+        } else {
+          totalModifier = abilityMod + profBonus; // Single proficiency
+        }
+      }
+      
+      return {
+        id: skill.id,
+        name: `${skill.name} Check`,
+        modifier: totalModifier,
+        type: 'skill',
+        ability: skill.ability,
+        description: `${skill.name} skill check`,
+        diceType: 'd20',
+        icon: skill.icon,
+        proficient,
+        expertise
+      };
+    });
     
     const combat = [
       {
@@ -197,7 +260,7 @@ const DnDCompanionApp = () => {
       attacks: attacks.sort((a, b) => b.modifier - a.modifier),
       combat: combat.sort((a, b) => b.modifier - a.modifier),
       saves: saves.sort((a, b) => b.modifier - a.modifier),
-      skills: [], // TODO: Add skills when we have skill proficiency data
+      skills: skills.sort((a, b) => b.modifier - a.modifier),
       abilities: abilities.sort((a, b) => b.modifier - a.modifier),
       healing,
       utility
@@ -336,6 +399,7 @@ const DnDCompanionApp = () => {
     
     setRollPopup(prev => ({
       ...prev,
+      isOpen: true,
       selectedAction: action,
       phase: 'rolling'
     }));
@@ -345,16 +409,71 @@ const DnDCompanionApp = () => {
       let result;
       
       if (action.type === 'attack') {
-        const weaponKey = action.id.includes('rapier') ? 'rapier' : 'shortbow';
-        result = performAttackRoll(weaponKey, isHidden);
+        const weaponName = action.weapon || action.name?.replace(' Attack', '');
+        result = performAttackRoll(weaponName, isHidden, activeCharacter);
         useAction();
         setLastAttackResult(result);
         
         if (isHidden) {
           setHidden(false); // Attacking breaks stealth
         }
+      } else if (action.type === 'spell_attack') {
+        // Handle Eldritch Blast and other spell attacks
+        const ability = activeCharacter.dnd_character_abilities?.find(a => a.id === action.id);
+        if (ability) {
+          const spellAttackResult = performSpellAttack(ability, isHidden, activeCharacter);
+          result = spellAttackResult;
+          useAction();
+          setLastAttackResult(result);
+          
+          if (isHidden) {
+            setHidden(false); // Attacking breaks stealth
+          }
+        }
+      } else if (action.type === 'spell_save') {
+        // Handle save-based spells like Poison Spray
+        const ability = activeCharacter.dnd_character_abilities?.find(a => a.id === action.id);
+        if (ability) {
+          // For save-based spells, we roll damage directly since the target makes the save
+          const damageRoll = rollDice(12); // d12 for Poison Spray
+          const spellDC = ability.ability_data?.spell_dc || 10;
+          
+          result = {
+            type: 'spell_save',
+            name: ability.ability_name,
+            damageRoll,
+            damage: damageRoll,
+            spellDC,
+            saveType: ability.ability_data?.save_type || 'constitution',
+            damageType: ability.ability_data?.damage_type || 'poison'
+          };
+          
+          // Log the spell save roll
+          logRoll({
+            type: 'spell_save',
+            name: ability.ability_name,
+            dice: [{
+              name: 'Damage Roll',
+              dice: [`d12: ${damageRoll}`],
+              bonus: 0,
+              total: damageRoll
+            }],
+            details: {
+              spellDC,
+              saveType: ability.ability_data?.save_type || 'constitution',
+              damageType: ability.ability_data?.damage_type || 'poison'
+            }
+          });
+          
+          useAction();
+          setLastAttackResult(result);
+          
+          if (isHidden) {
+            setHidden(false); // Casting spells breaks stealth
+          }
+        }
       } else if (action.type === 'healing') {
-        result = performHealingRoll(action, activeCharacter?.current_hp || 0);
+        result = performHealingRoll(action, activeCharacter?.current_hp || 0, activeCharacter);
         if (result.healingAmount !== undefined) {
           applyHealing(result.healingAmount);
         }
@@ -369,6 +488,7 @@ const DnDCompanionApp = () => {
         // Special handling for stealth
         if (action.id === 'stealth' && result.total >= 15) {
           setHidden(true);
+          useBonusAction(); // Mark bonus action as used for stealth
         }
       }
       
@@ -378,7 +498,7 @@ const DnDCompanionApp = () => {
         result
       }));
     }, 2000);
-  }, [performAttackRoll, performStandardRoll, performHealingRoll, isHidden, activeCharacter?.current_hp, useAction, setHidden, applyHealing, setInitiativeRoll, toggleHidden, closeRollPopup]);
+  }, [performAttackRoll, performSpellAttack, performStandardRoll, performHealingRoll, isHidden, activeCharacter?.current_hp, useAction, setHidden, applyHealing, setInitiativeRoll, toggleHidden, closeRollPopup]);
 
   const handleAttack = useCallback((weaponKey) => {
     if (turnState.actionUsed) return;
@@ -507,6 +627,7 @@ const DnDCompanionApp = () => {
         onUseItem={handleUseItem}
         onResetTurn={resetTurn}
         onUseBonusAction={useBonusAction}
+        onActionSelect={handleActionSelect}
       />
     </div>
   );
@@ -613,6 +734,86 @@ const DnDCompanionApp = () => {
             </div>
           </div>
 
+          {/* Skills */}
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-white mb-4">Skills</h3>
+            <div className="space-y-2">
+              {[
+                { id: 'acrobatics', name: 'Acrobatics', ability: 'dexterity' },
+                { id: 'animalHandling', name: 'Animal Handling', ability: 'wisdom' },
+                { id: 'arcana', name: 'Arcana', ability: 'intelligence' },
+                { id: 'athletics', name: 'Athletics', ability: 'strength' },
+                { id: 'deception', name: 'Deception', ability: 'charisma' },
+                { id: 'history', name: 'History', ability: 'intelligence' },
+                { id: 'insight', name: 'Insight', ability: 'wisdom' },
+                { id: 'intimidation', name: 'Intimidation', ability: 'charisma' },
+                { id: 'investigation', name: 'Investigation', ability: 'intelligence' },
+                { id: 'medicine', name: 'Medicine', ability: 'wisdom' },
+                { id: 'nature', name: 'Nature', ability: 'intelligence' },
+                { id: 'perception', name: 'Perception', ability: 'wisdom' },
+                { id: 'performance', name: 'Performance', ability: 'charisma' },
+                { id: 'persuasion', name: 'Persuasion', ability: 'charisma' },
+                { id: 'religion', name: 'Religion', ability: 'intelligence' },
+                { id: 'sleightOfHand', name: 'Sleight of Hand', ability: 'dexterity' },
+                { id: 'stealth', name: 'Stealth', ability: 'dexterity' },
+                { id: 'survival', name: 'Survival', ability: 'wisdom' }
+              ]
+              .map((skill) => {
+                const abilityMod = calcModifier(activeCharacter.ability_scores[skill.ability] || 10);
+                const profBonus = calcProficiencyBonus(activeCharacter.level || 1);
+                
+                // Check for skill proficiency/expertise in character abilities
+                const skillAbilities = activeCharacter.dnd_character_abilities || [];
+                const skillProficiency = skillAbilities.find(ability => 
+                  ability.ability_data?.skill === skill.id && 
+                  (ability.ability_data?.proficiency_type === 'proficiency' || ability.ability_data?.proficiency_type === 'expertise')
+                );
+                
+                let totalModifier = abilityMod;
+                let isProficient = false;
+                let hasExpertise = false;
+                
+                if (skillProficiency) {
+                  isProficient = true;
+                  if (skillProficiency.ability_data?.proficiency_type === 'expertise') {
+                    hasExpertise = true;
+                    totalModifier = abilityMod + (profBonus * 2); // Double proficiency for expertise
+                  } else {
+                    totalModifier = abilityMod + profBonus; // Single proficiency
+                  }
+                }
+                
+                return {
+                  ...skill,
+                  modifier: totalModifier,
+                  isProficient,
+                  hasExpertise
+                };
+              })
+              .sort((a, b) => b.modifier - a.modifier)
+              .map((skill) => (
+                <div key={skill.id} className="bg-gray-800 p-3 rounded-lg border border-gray-600 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-medium">{skill.name}</span>
+                    {skill.hasExpertise && (
+                      <span className="text-xs bg-yellow-600 text-yellow-200 px-1 rounded font-bold">
+                        EXP
+                      </span>
+                    )}
+                    {skill.isProficient && !skill.hasExpertise && (
+                      <span className="text-xs bg-green-600 text-green-200 px-1 rounded">
+                        PROF
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-lg font-bold text-blue-400">
+                    {skill.modifier >= 0 ? '+' : ''}{skill.modifier}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Weapons */}
           {activeCharacter.dnd_character_weapons && activeCharacter.dnd_character_weapons.length > 0 && (
             <div className="mb-8">
@@ -651,10 +852,12 @@ const DnDCompanionApp = () => {
                 Special Abilities
               </h3>
               <div className="grid gap-4">
-                {activeCharacter.dnd_character_abilities.map((ability, index) => {
+                {activeCharacter.dnd_character_abilities
+                  .filter(ability => !ability.ability_data?.skill) // Exclude skill proficiencies
+                  .map((ability, index) => {
                   // Color coding by ability type
-                  const getAbilityColor = (type) => {
-                    switch(type) {
+                  const getAbilityColor = (featureType) => {
+                    switch(featureType) {
                       case 'racial': return 'border-green-500 text-green-400';
                       case 'class': return 'border-blue-500 text-blue-400';
                       case 'patron': return 'border-purple-500 text-purple-400';
@@ -666,22 +869,33 @@ const DnDCompanionApp = () => {
                     }
                   };
                   
-                  const colorClass = getAbilityColor(ability.ability_type);
+                  const featureType = ability.ability_data?.feature_type || 'unknown';
+                  const colorClass = getAbilityColor(featureType);
+                  
+                  // Find linked resource if it exists
+                  const resourceLink = ability.ability_data?.resource_link;
+                  const linkedResource = resourceLink ? 
+                    activeCharacter.dnd_character_resources?.find(r => r.resource_name === resourceLink) : null;
+                  
+                  const hasUses = linkedResource || (ability.max_uses && ability.max_uses < 999);
+                  const currentUses = linkedResource?.current_value || ability.uses_remaining;
+                  const maxUses = linkedResource?.max_value || ability.max_uses;
                   
                   return (
-                    <div key={index} className={`bg-gray-800 p-4 rounded-xl border-2 ${colorClass}`}>
+                    <div key={ability.id} className={`bg-gray-800 p-4 rounded-xl border-2 ${colorClass}`}>
                       <div className="flex justify-between items-start mb-2">
-                        <h4 className={`font-bold text-lg ${colorClass.split(' ')[1]}`}>{ability.name}</h4>
-                        {ability.uses_per_rest < 999 && (
+                        <h4 className={`font-bold text-lg ${colorClass.split(' ')[1]}`}>{ability.ability_name}</h4>
+                        {hasUses && (
                           <span className="text-sm bg-gray-700 px-2 py-1 rounded">
-                            {ability.uses_remaining}/{ability.uses_per_rest} uses
+                            {currentUses}/{maxUses} uses
                           </span>
                         )}
                       </div>
                       <div className="text-xs text-gray-400 mb-2 uppercase tracking-wide">
-                        {ability.ability_type} {ability.rest_type !== 'none' && `• ${ability.rest_type} rest`}
+                        {ability.ability_type?.replace('_', ' ')}
+                        {ability.recharge_type && ability.recharge_type !== 'encounter' && ` • ${ability.recharge_type.replace('_', ' ')}`}
                       </div>
-                      <p className="text-gray-300 text-sm">{ability.description}</p>
+                      <p className="text-gray-300 text-sm">{ability.ability_data?.description || 'No description available'}</p>
                     </div>
                   );
                 })}
@@ -697,19 +911,36 @@ const DnDCompanionApp = () => {
                 Resources
               </h3>
               <div className="grid md:grid-cols-2 gap-4">
-                {activeCharacter.dnd_character_resources.map((resource, index) => (
-                  <div key={index} className="bg-gray-800 p-4 rounded-xl border-2 border-indigo-600">
-                    <h4 className="font-bold text-indigo-400 text-lg mb-2">{resource.resource_name}</h4>
-                    <div className="flex justify-between items-center">
-                      <span className="text-2xl font-bold text-white">
-                        {resource.current_amount}/{resource.max_amount}
-                      </span>
-                      <span className="text-xs text-gray-400 uppercase tracking-wide">
-                        {resource.recharge_type}
-                      </span>
+                {activeCharacter.dnd_character_resources.map((resource) => {
+                  // Determine resource color based on type
+                  const getResourceColor = (type) => {
+                    switch(type) {
+                      case 'spell_slot': return 'border-purple-600 text-purple-400';
+                      case 'hit_dice': return 'border-red-600 text-red-400';
+                      default: return 'border-indigo-600 text-indigo-400';
+                    }
+                  };
+                  
+                  const colorClass = getResourceColor(resource.resource_type);
+                  
+                  return (
+                    <div key={resource.id} className={`bg-gray-800 p-4 rounded-xl border-2 ${colorClass.split(' ')[0]}`}>
+                      <h4 className={`font-bold text-lg mb-2 ${colorClass.split(' ')[1]}`}>
+                        {resource.resource_name}
+                      </h4>
+                      <div className="flex justify-between items-center">
+                        <span className="text-2xl font-bold text-white">
+                          {resource.current_value}/{resource.max_value}
+                        </span>
+                        {resource.level && (
+                          <span className="text-xs text-gray-400 uppercase tracking-wide">
+                            Level {resource.level}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

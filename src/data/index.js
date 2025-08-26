@@ -75,22 +75,4 @@ export {
   createCustomRollAction
 } from './rollActionsGenerator.js';
 
-// =============================================================================
-// CHARACTER TEMPLATES
-// =============================================================================
-export {
-  YUAN_TI_ROGUE,
-  CHARACTER_TEMPLATES,
-  createCharacterFromTemplate,
-  getTemplateNames,
-  getTemplateSummary,
-  getAllTemplateSummaries
-} from './characterTemplates.js';
-
-// =============================================================================
-// CONVENIENCE EXPORTS
-// =============================================================================
-
-// Export the default character for existing components
-export { YUAN_TI_ROGUE as character } from './characterTemplates.js';
 

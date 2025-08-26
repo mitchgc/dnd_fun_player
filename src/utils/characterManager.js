@@ -3,7 +3,6 @@
 
 import { CharacterStorage } from './characterStorage.js';
 import { createCharacter } from '../data/characterSystem.js';
-import { YUAN_TI_ROGUE } from '../data/characterTemplates.js';
 import { getAllSkillsData, getSkillData, SKILLS } from '../data/skillsSystem.js';
 
 export class CharacterManager {
@@ -55,14 +54,24 @@ export class CharacterManager {
   
   // Create a character from a template
   static createCharacterFromTemplate(templateName, customizations = {}) {
-    // For now, we only have the Yuan-ti Rogue template
-    // This can be expanded later with more character templates
-    if (templateName !== 'rogueScout') {
-      console.warn(`Template '${templateName}' not found, using default Yuan-ti Rogue`);
-    }
+    // Templates removed - create basic character structure
+    console.warn('Character templates have been removed from the codebase');
     
     return {
-      ...YUAN_TI_ROGUE,
+      name: 'New Character',
+      race: 'Human',
+      characterClass: 'Fighter',
+      level: 1,
+      abilityScores: {
+        strength: 10,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10
+      },
+      maxHP: 10,
+      ac: 10,
       ...customizations,
       id: `character-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     };

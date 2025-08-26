@@ -268,9 +268,20 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
             .select('*')
             .eq('character_id', character.id);
             
-          // Attach to character object
+          // Transform and attach to character object
           character.dnd_character_abilities = abilities || [];
-          character.dnd_character_weapons = weapons || [];
+          character.dnd_character_weapons = (weapons || []).map(weapon => ({
+            ...weapon,
+            // Flatten weapon_data fields to match expected structure
+            damage_dice: weapon.weapon_data?.damage || '1d6',
+            damage_bonus: weapon.weapon_data?.damageBonus || 0,
+            attack_bonus: weapon.weapon_data?.attackBonus || 0,
+            damage_type: weapon.weapon_data?.damageType || 'piercing',
+            properties: weapon.weapon_data?.properties?.join(', ') || '',
+            range_normal: weapon.weapon_data?.range?.[0] || null,
+            range_long: weapon.weapon_data?.range?.[1] || null,
+            description: weapon.weapon_data?.description || ''
+          }));
           character.dnd_character_resources = resources || [];
         }
       }
