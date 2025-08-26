@@ -224,7 +224,13 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
       
       if (!user) {
         console.error('❌ User not authenticated for character loading');
-        dispatch({ type: ActionTypes.SET_ERROR, payload: 'User not authenticated' });
+        dispatch({ type: ActionTypes.SET_ERROR, payload: 'User not authenticated - will retry in 2 seconds' });
+        
+        // Retry after a delay to allow auth to complete
+        setTimeout(() => {
+          console.log('🔄 Retrying character loading after auth delay...');
+          fetchCharacters();
+        }, 2000);
         return;
       }
 
@@ -448,9 +454,15 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
     }
   }, []);
 
-  // Load characters on mount
+  // Load characters on mount, but only after a short delay to allow auth
   useEffect(() => {
-    fetchCharacters();
+    console.log('⏳ Delaying character loading to allow auth initialization...');
+    const timer = setTimeout(() => {
+      console.log('🚀 Loading characters after auth delay...');
+      fetchCharacters();
+    }, 1500);
+    
+    return () => clearTimeout(timer);
   }, [fetchCharacters]);
 
   // Subscribe to character changes
