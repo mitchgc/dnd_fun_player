@@ -208,7 +208,7 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
   const [state, dispatch] = useReducer(characterReducer, initialState);
 
   // Fetch user's characters from Supabase
-  const fetchCharacters = useCallback(async () => {
+  const fetchCharacters = useCallback(async (retryCount = 0) => {
     if (!supabase) {
       console.warn('📦 Supabase not configured for character loading');
       dispatch({ type: ActionTypes.SET_ERROR, payload: 'Supabase not configured' });
@@ -224,13 +224,17 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
       
       if (!user) {
         console.error('❌ User not authenticated for character loading');
-        dispatch({ type: ActionTypes.SET_ERROR, payload: 'User not authenticated - will retry in 2 seconds' });
         
-        // Retry after a delay to allow auth to complete
-        setTimeout(() => {
-          console.log('🔄 Retrying character loading after auth delay...');
-          fetchCharacters();
-        }, 2000);
+        // Only retry once to prevent infinite loops
+        if (retryCount === 0) {
+          dispatch({ type: ActionTypes.SET_ERROR, payload: 'User not authenticated - will retry in 2 seconds' });
+          setTimeout(() => {
+            console.log('🔄 Retrying character loading after auth delay...');
+            fetchCharacters(1);
+          }, 2000);
+        } else {
+          dispatch({ type: ActionTypes.SET_ERROR, payload: 'User authentication failed after retry' });
+        }
         return;
       }
 
@@ -463,7 +467,7 @@ export const CharacterProvider: React.FC<CharacterProviderProps> = ({ children }
     }, 1500);
     
     return () => clearTimeout(timer);
-  }, [fetchCharacters]);
+  }, []); // Remove fetchCharacters dependency to prevent infinite loop
 
   // Subscribe to character changes
   useEffect(() => {
