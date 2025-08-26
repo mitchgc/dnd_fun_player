@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Sword, Shield, User, Eye, EyeOff, Dice6, Target, Package, Heart, Sparkles } from 'lucide-react';
 
 const DnDCompanionApp = () => {
@@ -31,14 +31,73 @@ const DnDCompanionApp = () => {
     selectedDefenses: [],
     finalDamage: 0
   });
+  
+  // Mobile keyboard detection state
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [healingInput, setHealingInput] = useState({
     customAmount: '',
     selectedHealing: null
   });
+
+  // Detect mobile keyboard
+  useEffect(() => {
+    const initialHeight = window.innerHeight;
+    const threshold = 150; // Threshold for keyboard detection
+    
+    const handleResize = () => {
+      const currentHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const heightDifference = initialHeight - currentHeight;
+      
+      setViewportHeight(currentHeight);
+      setIsKeyboardOpen(heightDifference > threshold);
+    };
+
+    // Listen to both resize and visual viewport events for better mobile detection
+    window.addEventListener('resize', handleResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+    };
+  }, []);
   const [hpEditing, setHpEditing] = useState(false);
   const [hpEditValue, setHpEditValue] = useState('');
   const [defensiveCollapsed, setDefensiveCollapsed] = useState(false);
   const [turnCollapsed, setTurnCollapsed] = useState(false);
+  
+  // Story section state
+  const [storyCollapsed, setStoryCollapsed] = useState({
+    backstory: false,
+    companions: false,
+    journal: false
+  });
+  const [companions, setCompanions] = useState([]);
+  const [editingCompanion, setEditingCompanion] = useState(null);
+  const [journalContent, setJournalContent] = useState(`# Session Notes
+
+## Today's Date: ${new Date().toLocaleDateString()}
+
+### Key Events
+- 
+
+### Important NPCs Met
+- 
+
+### Loot & Rewards
+- 
+
+### Next Session Goals
+- `);
+  const [displayJournalContent, setDisplayJournalContent] = useState('');
+  const [savedJournalContent, setSavedJournalContent] = useState('');
+  const [journalEditing, setJournalEditing] = useState(false);
+  const journalTextareaRef = useRef(null);
 
   // Character data - Enhanced for better gameplay
   const character = {
@@ -846,6 +905,140 @@ const DnDCompanionApp = () => {
     setCurrentHP(prev => Math.max(0, Math.min(character.maxHP, prev + amount)));
   };
 
+  // Story section functions
+  const toggleStorySection = (section) => {
+    setStoryCollapsed(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  const addCompanion = () => {
+    const newCompanion = {
+      id: Date.now(),
+      name: '',
+      realPlayer: '',
+      characterClass: '',
+      notes: ''
+    };
+    setCompanions(prev => [...prev, newCompanion]);
+    setEditingCompanion(newCompanion.id);
+  };
+
+  const updateCompanion = (id, field, value) => {
+    setCompanions(prev => prev.map(comp => 
+      comp.id === id ? { ...comp, [field]: value } : comp
+    ));
+  };
+
+  const deleteCompanion = (id) => {
+    setCompanions(prev => prev.filter(comp => comp.id !== id));
+    if (editingCompanion === id) {
+      setEditingCompanion(null);
+    }
+  };
+
+  const saveJournal = () => {
+    // Auto-save functionality - in a real app this would save to localStorage or backend
+    localStorage.setItem('dnd-journal', journalContent);
+    setJournalEditing(false);
+  };
+
+  // Load journal from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('dnd-journal');
+    if (saved) {
+      setDisplayJournalContent(saved);
+      setSavedJournalContent(saved);
+      setJournalContent(saved);
+    } else {
+      // Use the initial markdown content as-is for textarea
+      setDisplayJournalContent(journalContent);
+      setSavedJournalContent(journalContent);
+    }
+    
+    const savedCompanions = localStorage.getItem('dnd-companions');
+    if (savedCompanions) {
+      setCompanions(JSON.parse(savedCompanions));
+    }
+  }, [journalContent]);
+
+  // Auto-save companions when they change
+  useEffect(() => {
+    localStorage.setItem('dnd-companions', JSON.stringify(companions));
+  }, [companions]);
+
+  // Auto-save journal when display content changes (debounced)
+  useEffect(() => {
+    if (displayJournalContent && displayJournalContent !== savedJournalContent) {
+      const timer = setTimeout(() => {
+        setSavedJournalContent(displayJournalContent);
+        setJournalContent(displayJournalContent);
+        localStorage.setItem('dnd-journal', displayJournalContent);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [displayJournalContent, savedJournalContent]);
+
+  // Textarea editor functions with markdown formatting
+  const wrapSelectedText = (startTag, endTag = null) => {
+    if (!journalTextareaRef.current) return;
+    
+    const textarea = journalTextareaRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = displayJournalContent.substring(start, end);
+    
+    const actualEndTag = endTag || startTag;
+    const newText = 
+      displayJournalContent.substring(0, start) + 
+      startTag + selectedText + actualEndTag + 
+      displayJournalContent.substring(end);
+    
+    setDisplayJournalContent(newText);
+    
+    // Restore cursor position after formatting
+    setTimeout(() => {
+      const newCursorPos = start + startTag.length + selectedText.length + actualEndTag.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.focus();
+    }, 0);
+  };
+
+  const insertText = (textToInsert) => {
+    if (!journalTextareaRef.current) return;
+    
+    const textarea = journalTextareaRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    
+    const newText = 
+      displayJournalContent.substring(0, start) + 
+      textToInsert + 
+      displayJournalContent.substring(end);
+    
+    setDisplayJournalContent(newText);
+    
+    // Move cursor to end of inserted text
+    setTimeout(() => {
+      const newCursorPos = start + textToInsert.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.focus();
+    }, 0);
+  };
+
+  const handleJournalChange = (e) => {
+    setDisplayJournalContent(e.target.value);
+  };
+
+  const handleJournalFocus = () => {
+    setJournalEditing(true);
+  };
+
+  const handleJournalBlur = () => {
+    setJournalEditing(false);
+  };
+
   // Standardized Button Component - All buttons use vertical layout with ICON/TITLE/Subtext structure
   const ActionButton = ({ 
     onClick, 
@@ -1388,59 +1581,874 @@ const DnDCompanionApp = () => {
     </div>
   );
 
-  // Enhanced Backstory Page
-  const BackstoryPage = () => (
+  // Simple Journal Page - Notion-style pages system
+  const SimpleJournalPage = () => {
+    const [pages, setPages] = useState([]);
+    const [currentPageId, setCurrentPageId] = useState(null);
+    const [currentContent, setCurrentContent] = useState('');
+    const [formatDropdownOpen, setFormatDropdownOpen] = useState(false);
+    const editorRef = useRef(null);
+    const dropdownRef = useRef(null);
+    const [isLoaded, setIsLoaded] = useState(false);
+    const cursorPositionRef = useRef(null);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    
+    // Load pages from localStorage on mount
+    useEffect(() => {
+      const savedPages = localStorage.getItem('dnd-journal-pages');
+      if (savedPages) {
+        const parsedPages = JSON.parse(savedPages);
+        setPages(parsedPages);
+        // Open the first page if available
+        if (parsedPages.length > 0) {
+          setCurrentPageId(parsedPages[0].id);
+          setCurrentContent(parsedPages[0].content || '');
+        }
+      } else {
+        // Create default page
+        const defaultPage = {
+          id: 'page-1',
+          title: 'Session Notes',
+          content: '',
+          parentId: null,
+          children: [],
+          createdAt: new Date().toISOString()
+        };
+        setPages([defaultPage]);
+        setCurrentPageId('page-1');
+      }
+      setIsLoaded(true);
+    }, []);
+    
+    // Load current page content
+    useEffect(() => {
+      if (currentPageId && pages.length > 0) {
+        const currentPage = pages.find(p => p.id === currentPageId);
+        if (currentPage) {
+          setCurrentContent(currentPage.content || '');
+          if (isLoaded && editorRef.current) {
+            editorRef.current.innerHTML = currentPage.content || '';
+          }
+        }
+      }
+    }, [currentPageId, pages, isLoaded]);
+    
+    // Auto-save current page with debouncing
+    useEffect(() => {
+      if (currentPageId && currentContent && isLoaded) {
+        const timer = setTimeout(() => {
+          // Save to localStorage without triggering state update
+          const currentPages = JSON.parse(localStorage.getItem('dnd-journal-pages') || '[]');
+          const updatedPages = currentPages.map(page => 
+            page.id === currentPageId 
+              ? { ...page, content: currentContent }
+              : page
+          );
+          localStorage.setItem('dnd-journal-pages', JSON.stringify(updatedPages));
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }, [currentContent, currentPageId, isLoaded]);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+          setFormatDropdownOpen(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+    
+    const saveCursorPosition = () => {
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        cursorPositionRef.current = selection.getRangeAt(0).cloneRange();
+      }
+    };
+    
+    const restoreCursorPosition = () => {
+      if (cursorPositionRef.current) {
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(cursorPositionRef.current);
+      }
+    };
+    
+    const handleInput = () => {
+      if (editorRef.current) {
+        saveCursorPosition();
+        setCurrentContent(editorRef.current.innerHTML);
+      }
+    };
+    
+    const createNewPage = (parentId = null) => {
+      const newId = 'page-' + Date.now();
+      const newPage = {
+        id: newId,
+        title: 'Untitled',
+        content: '',
+        parentId: parentId,
+        children: [],
+        createdAt: new Date().toISOString()
+      };
+      
+      setPages(prevPages => {
+        const updatedPages = [...prevPages, newPage];
+        // If creating a child page, add to parent's children
+        if (parentId) {
+          const parentIndex = updatedPages.findIndex(p => p.id === parentId);
+          if (parentIndex !== -1) {
+            updatedPages[parentIndex] = {
+              ...updatedPages[parentIndex],
+              children: [...updatedPages[parentIndex].children, newId]
+            };
+          }
+        }
+        localStorage.setItem('dnd-journal-pages', JSON.stringify(updatedPages));
+        return updatedPages;
+      });
+      
+      setCurrentPageId(newId);
+    };
+    
+    const deletePage = (pageId) => {
+      if (pages.length <= 1) return; // Keep at least one page
+      
+      setPages(prevPages => {
+        const updatedPages = prevPages.filter(p => p.id !== pageId);
+        // Remove from parent's children if necessary
+        const pageToDelete = prevPages.find(p => p.id === pageId);
+        if (pageToDelete?.parentId) {
+          const parentIndex = updatedPages.findIndex(p => p.id === pageToDelete.parentId);
+          if (parentIndex !== -1) {
+            updatedPages[parentIndex].children = updatedPages[parentIndex].children.filter(id => id !== pageId);
+          }
+        }
+        localStorage.setItem('dnd-journal-pages', JSON.stringify(updatedPages));
+        return updatedPages;
+      });
+      
+      // Switch to first available page
+      if (currentPageId === pageId) {
+        const remainingPages = pages.filter(p => p.id !== pageId);
+        if (remainingPages.length > 0) {
+          setCurrentPageId(remainingPages[0].id);
+        }
+      }
+    };
+    
+    const updatePageTitle = (pageId, newTitle) => {
+      setPages(prevPages => {
+        const updatedPages = prevPages.map(page => 
+          page.id === pageId 
+            ? { ...page, title: newTitle }
+            : page
+        );
+        localStorage.setItem('dnd-journal-pages', JSON.stringify(updatedPages));
+        return updatedPages;
+      });
+    };
+    
+    const getCurrentPage = () => {
+      return pages.find(p => p.id === currentPageId);
+    };
+    
+    const execCommand = (command, value = null) => {
+      document.execCommand(command, false, value);
+      editorRef.current?.focus();
+    };
+    
+    const insertTitle = () => {
+      execCommand('formatBlock', 'h2');
+    };
+    
+    const toggleBold = () => {
+      execCommand('bold');
+    };
+    
+    const applyParagraphStyle = (styleClass) => {
+      // First ensure we have a paragraph element to work with
+      document.execCommand('formatBlock', false, 'p');
+      
+      // Short delay to let the DOM update
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (selection.rangeCount === 0) return;
+        
+        const range = selection.getRangeAt(0);
+        let currentElement = range.startContainer;
+        
+        // Find the current block element (should be a P now)
+        while (currentElement && currentElement.nodeType !== Node.ELEMENT_NODE) {
+          currentElement = currentElement.parentNode;
+        }
+        
+        if (currentElement && currentElement.tagName === 'P') {
+          // Simply apply the CSS class to the existing paragraph
+          currentElement.className = styleClass;
+        }
+        
+        editorRef.current?.focus();
+      }, 0);
+    };
+
+    // Format options for dropdown
+    const formatOptions = [
+      { 
+        label: 'Normal text', 
+        style: 'text-sm text-gray-300', 
+        action: () => applyParagraphStyle('editor-normal') 
+      },
+      { 
+        label: 'Heading 1', 
+        style: 'text-2xl font-bold text-white', 
+        action: () => applyParagraphStyle('editor-h1') 
+      },
+      { 
+        label: 'Heading 2', 
+        style: 'text-xl font-semibold text-gray-300', 
+        action: () => applyParagraphStyle('editor-h2') 
+      },
+      { 
+        label: 'Heading 3', 
+        style: 'text-lg font-medium text-white', 
+        action: () => applyParagraphStyle('editor-h3') 
+      },
+      { 
+        label: 'Quote', 
+        style: 'text-sm text-gray-400 italic border-l-4 border-gray-500 pl-3', 
+        action: () => applyParagraphStyle('editor-quote') 
+      },
+      { 
+        label: 'Important', 
+        style: 'text-sm bg-yellow-600 text-black px-2 py-1 rounded', 
+        action: () => applyParagraphStyle('editor-important')
+      },
+      { 
+        label: 'Bullet List', 
+        style: 'text-sm text-white', 
+        action: () => applyParagraphStyle('editor-bullet'),
+        prefix: '• ' 
+      },
+    ];
+
+    const handleFormatSelect = (option) => {
+      option.action();
+      setFormatDropdownOpen(false);
+      editorRef.current?.focus();
+    };
+    
+    // Render page tree recursively
+    const renderPageTree = useCallback((pageId, level = 0) => {
+      const page = pages.find(p => p.id === pageId);
+      if (!page) return null;
+      
+      return (
+        <div key={pageId}>
+          <div 
+            className={`flex items-center p-2 rounded cursor-pointer transition-colors ${
+              currentPageId === pageId ? 'bg-green-600' : 'hover:bg-gray-700'
+            }`}
+            style={{ paddingLeft: `${level * 20 + 8}px` }}
+            onClick={() => setCurrentPageId(pageId)}
+          >
+            <span className="mr-2">📄</span>
+            <span className="flex-1 text-sm text-white truncate">
+              {page.title}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                createNewPage(pageId);
+              }}
+              className="ml-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white p-1"
+              title="Add sub-page"
+            >
+              +
+            </button>
+          </div>
+          {/* Render children */}
+          {page.children && page.children.map(childId => 
+            renderPageTree(childId, level + 1)
+          )}
+        </div>
+      );
+    }, [pages, currentPageId]);
+    
+    const currentPage = getCurrentPage();
+    
+    return (
+      <div className="flex h-full">
+        {/* Sidebar */}
+        <div className={`bg-gray-900 border-r border-gray-700 transition-all duration-300 ${
+          sidebarCollapsed ? 'w-12' : 'w-64'
+        }`}>
+          {/* Sidebar Header */}
+          <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+            {!sidebarCollapsed && (
+              <h2 className="text-white font-semibold flex items-center">
+                <span className="mr-2">📚</span>
+                Pages
+              </h2>
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="text-gray-400 hover:text-white p-1"
+            >
+              {sidebarCollapsed ? '→' : '←'}
+            </button>
+          </div>
+          
+          {!sidebarCollapsed && (
+            <>
+              {/* New Page Button */}
+              <div className="p-4">
+                <button
+                  onClick={() => createNewPage()}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white p-2 rounded text-sm font-medium flex items-center justify-center"
+                >
+                  <span className="mr-2">+</span>
+                  New Page
+                </button>
+              </div>
+              
+              {/* Pages Tree */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-2 group">
+                  {pages
+                    .filter(page => !page.parentId) // Only show root pages
+                    .map(page => renderPageTree(page.id))
+                  }
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl border-2 border-green-600 m-6 flex-1 flex flex-col">
+            <div className="p-6 border-b border-gray-700">
+              {/* Page Title */}
+              <div className="flex items-center justify-between mb-4">
+                {currentPage && (
+                  <input
+                    type="text"
+                    value={currentPage.title}
+                    onChange={(e) => updatePageTitle(currentPageId, e.target.value)}
+                    className="text-3xl font-bold text-white bg-transparent border-none outline-none flex-1"
+                    placeholder="Page title..."
+                  />
+                )}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => createNewPage()}
+                    className="text-gray-400 hover:text-white p-2"
+                    title="New page"
+                  >
+                    📄+
+                  </button>
+                  {pages.length > 1 && (
+                    <button
+                      onClick={() => deletePage(currentPageId)}
+                      className="text-gray-400 hover:text-red-400 p-2"
+                      title="Delete page"
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
+              </div>
+            
+              {/* Formatting Dropdown */}
+              <div ref={dropdownRef} className="relative">
+                <button
+                  onClick={() => setFormatDropdownOpen(!formatDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 hover:bg-gray-600 transition-colors text-sm font-medium"
+                >
+                  <span>Format</span>
+                  <svg 
+                    className={`w-4 h-4 transition-transform ${formatDropdownOpen ? 'rotate-180' : ''}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {formatDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-56 bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50">
+                    {formatOptions.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleFormatSelect(option)}
+                        className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        <span className={option.style}>
+                          {option.prefix || ''}{option.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Rich Text Editor - Document Style */}
+            <div className="flex-1 p-6">
+              <div 
+                ref={editorRef}
+                contentEditable
+                onInput={handleInput}
+                className="journal-editor w-full h-full bg-gray-800 text-white p-6 rounded-xl border-2 border-gray-600 focus:border-green-500 outline-none text-base leading-relaxed overflow-y-auto"
+                style={{
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  lineHeight: '1.6',
+                  minHeight: '400px',
+                  direction: 'ltr',
+                  textAlign: 'left',
+                  unicodeBidi: 'normal',
+                  writingMode: 'horizontal-tb'
+                }}
+                suppressContentEditableWarning={true}
+                data-placeholder={!currentContent ? "Start writing your notes here..." : ""}
+              />
+            </div>
+            
+            {/* Footer */}
+            <div className="px-6 pb-4 text-xs text-gray-400 flex justify-between items-center border-t border-gray-700 pt-4">
+              <span>💾 Auto-saves as you type</span>
+              <span>Pages: {pages.length}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Global Styles */}
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            .journal-editor:empty::before {
+              content: attr(data-placeholder);
+              color: #9ca3af;
+              pointer-events: none;
+              direction: ltr;
+              text-align: left;
+            }
+            
+            .journal-editor * {
+              direction: ltr !important;
+              text-align: left !important;
+              unicode-bidi: normal !important;
+              writing-mode: horizontal-tb !important;
+            }
+            
+            /* Paragraph Style Classes - Mutually Exclusive */
+            .journal-editor .editor-normal {
+              font-size: 1rem !important;
+              font-weight: normal !important;
+              color: #ffffff !important;
+              margin: 0.5rem 0 !important;
+              padding: 0 !important;
+              background: none !important;
+              border: none !important;
+              font-style: normal !important;
+              line-height: 1.6 !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor .editor-h1 {
+              font-size: 2rem !important;
+              font-weight: bold !important;
+              color: #ffffff !important;
+              margin: 1.5rem 0 0.75rem 0 !important;
+              padding: 0 !important;
+              background: none !important;
+              border: none !important;
+              font-style: normal !important;
+              line-height: 1.2 !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor .editor-h2 {
+              font-size: 1.5rem !important;
+              font-weight: 600 !important;
+              color: #ffffff !important;
+              margin: 1rem 0 0.5rem 0 !important;
+              padding: 0 !important;
+              background: none !important;
+              border: none !important;
+              font-style: normal !important;
+              line-height: 1.3 !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor .editor-h3 {
+              font-size: 1.25rem !important;
+              font-weight: 500 !important;
+              color: #ffffff !important;
+              margin: 0.75rem 0 0.5rem 0 !important;
+              padding: 0 !important;
+              background: none !important;
+              border: none !important;
+              font-style: normal !important;
+              line-height: 1.4 !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor .editor-quote {
+              font-size: 1rem !important;
+              font-weight: normal !important;
+              color: #9ca3af !important;
+              margin: 0.75rem 0 !important;
+              padding: 0 0 0 1rem !important;
+              background: none !important;
+              border-left: 4px solid #6b7280 !important;
+              border-top: none !important;
+              border-right: none !important;
+              border-bottom: none !important;
+              font-style: italic !important;
+              line-height: 1.6 !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor .editor-important {
+              font-size: 1rem !important;
+              font-weight: normal !important;
+              color: #000000 !important;
+              margin: 0.5rem 0 !important;
+              padding: 8px 12px !important;
+              background-color: #fbbf24 !important;
+              border: none !important;
+              border-radius: 6px !important;
+              font-style: normal !important;
+              line-height: 1.6 !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor .editor-bullet {
+              font-size: 1rem !important;
+              font-weight: normal !important;
+              color: #ffffff !important;
+              margin: 0.25rem 0 !important;
+              padding-left: 1.5rem !important;
+              background: none !important;
+              border: none !important;
+              font-style: normal !important;
+              line-height: 1.6 !important;
+              direction: ltr !important;
+              text-align: left !important;
+              position: relative !important;
+            }
+            
+            .journal-editor .editor-bullet::before {
+              content: "•" !important;
+              position: absolute !important;
+              left: 0.5rem !important;
+              color: #ffffff !important;
+            }
+            
+            .journal-editor ul {
+              margin: 0.5rem 0 !important;
+              padding-left: 1.5rem !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor li {
+              margin: 0.25rem 0 !important;
+              direction: ltr !important;
+              text-align: left !important;
+            }
+            
+            .journal-editor strong {
+              font-weight: bold !important;
+            }
+            
+            .journal-editor p, .journal-editor div {
+              direction: ltr !important;
+              text-align: left !important;
+              unicode-bidi: normal !important;
+            }
+          `
+        }} />
+      </div>
+    );
+  };
+
+  // Enhanced Story Page with collapsible sections
+  const StoryPage = () => (
     <div className="p-4 md:p-6 space-y-6">
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-green-600">
-        <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6 mb-8">
-          <div className="w-32 h-32 bg-gradient-to-br from-green-600 to-green-800 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-2xl border-2 border-green-500">
-            🐍
+      {/* Character Backstory Section */}
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl border-2 border-green-600">
+        <div 
+          className="flex items-center justify-between p-6 border-b border-gray-700 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          onClick={() => toggleStorySection('backstory')}
+        >
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-600 to-green-800 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg border-2 border-green-500 mr-4">
+              📜
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold text-white">Character Backstory</h2>
+              <p className="text-gray-300 font-medium">{character.name} - {character.race} {character.class}</p>
+            </div>
           </div>
-          <div className="text-center md:text-left">
-            <h2 className="text-4xl font-bold text-white flex items-center justify-center md:justify-start">
-              {character.name}
-              <Sparkles className="ml-3 text-yellow-400" size={28} />
-            </h2>
-            <p className="text-xl text-gray-300 font-semibold mt-2">{character.race} {character.class}</p>
-            <p className="text-lg text-gray-300 italic mt-1">{character.backstory.background}</p>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="bg-gradient-to-r from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-green-600">
-            <h3 className="text-2xl font-bold text-green-400 mb-4 flex items-center">
-              📜 Background Story
-            </h3>
-            <p className="text-gray-200 leading-relaxed text-lg">{character.backstory.description}</p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-blue-600">
-              <h4 className="font-bold text-blue-400 mb-3 text-xl flex items-center">
-                🎭 Personality Traits
-              </h4>
-              <p className="text-gray-200 leading-relaxed">{character.backstory.traits}</p>
-            </div>
-            <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-purple-600">
-              <h4 className="font-bold text-purple-400 mb-3 text-xl flex items-center">
-                💖 Bonds
-              </h4>
-              <p className="text-gray-200 leading-relaxed">{character.backstory.bonds}</p>
-            </div>
-            <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-red-600">
-              <h4 className="font-bold text-red-400 mb-3 text-xl flex items-center">
-                😅 Flaws
-              </h4>
-              <p className="text-gray-200 leading-relaxed">{character.backstory.flaws}</p>
-            </div>
-            <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-yellow-600">
-              <h4 className="font-bold text-yellow-400 mb-3 text-xl flex items-center">
-                👤 Appearance
-              </h4>
-              <p className="text-gray-200 leading-relaxed">{character.backstory.appearance}</p>
-            </div>
+          <div className={`transform transition-transform duration-300 text-green-400 ${
+            storyCollapsed.backstory ? 'rotate-180' : ''
+          }`}>
+            ▼
           </div>
         </div>
+        
+        {!storyCollapsed.backstory && (
+          <div className="p-6 space-y-6">
+            <div className="bg-gradient-to-r from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-green-600">
+              <h3 className="text-2xl font-bold text-green-400 mb-4 flex items-center">
+                📜 Background Story
+              </h3>
+              <p className="text-gray-200 leading-relaxed text-lg">{character.backstory.description}</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-blue-600">
+                <h4 className="font-bold text-blue-400 mb-3 text-xl flex items-center">
+                  🎭 Personality Traits
+                </h4>
+                <p className="text-gray-200 leading-relaxed">{character.backstory.traits}</p>
+              </div>
+              <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-purple-600">
+                <h4 className="font-bold text-purple-400 mb-3 text-xl flex items-center">
+                  💖 Bonds
+                </h4>
+                <p className="text-gray-200 leading-relaxed">{character.backstory.bonds}</p>
+              </div>
+              <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-red-600">
+                <h4 className="font-bold text-red-400 mb-3 text-xl flex items-center">
+                  😅 Flaws
+                </h4>
+                <p className="text-gray-200 leading-relaxed">{character.backstory.flaws}</p>
+              </div>
+              <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl border-2 border-yellow-600">
+                <h4 className="font-bold text-yellow-400 mb-3 text-xl flex items-center">
+                  👤 Appearance
+                </h4>
+                <p className="text-gray-200 leading-relaxed">{character.backstory.appearance}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Companions Section */}
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl border-2 border-blue-600">
+        <div 
+          className="flex items-center justify-between p-6 border-b border-gray-700 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          onClick={() => toggleStorySection('companions')}
+        >
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg border-2 border-blue-500 mr-4">
+              👥
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold text-white">Companions</h2>
+              <p className="text-gray-300 font-medium">Party Members & Important NPCs</p>
+            </div>
+          </div>
+          <div className={`transform transition-transform duration-300 text-blue-400 ${
+            storyCollapsed.companions ? 'rotate-180' : ''
+          }`}>
+            ▼
+          </div>
+        </div>
+        
+        {!storyCollapsed.companions && (
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-gray-300">Track your party members and important NPCs</p>
+              <ActionButton
+                onClick={addCompanion}
+                variant="primary"
+                icon="+"
+                title="Add Companion"
+                className="!p-2 !text-sm"
+              />
+            </div>
+            
+            {companions.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <p className="text-lg mb-2">👥 No companions yet</p>
+                <p className="text-sm">Add party members and NPCs to keep track of who's who</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {companions.sort((a, b) => a.name.localeCompare(b.name)).map((companion) => (
+                  <div key={companion.id} className="bg-gray-800 p-4 rounded-xl border-2 border-gray-600">
+                    {editingCompanion === companion.id ? (
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          placeholder="Character Name"
+                          value={companion.name}
+                          onChange={(e) => updateCompanion(companion.id, 'name', e.target.value)}
+                          className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-blue-500 outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Real Player Name"
+                          value={companion.realPlayer}
+                          onChange={(e) => updateCompanion(companion.id, 'realPlayer', e.target.value)}
+                          className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-blue-500 outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Class/Race"
+                          value={companion.characterClass}
+                          onChange={(e) => updateCompanion(companion.id, 'characterClass', e.target.value)}
+                          className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-blue-500 outline-none"
+                        />
+                        <textarea
+                          placeholder="Notes (personality, abilities, etc.)"
+                          value={companion.notes}
+                          onChange={(e) => updateCompanion(companion.id, 'notes', e.target.value)}
+                          className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-blue-500 outline-none resize-none"
+                          rows="2"
+                        />
+                        <div className="flex gap-2">
+                          <ActionButton
+                            onClick={() => setEditingCompanion(null)}
+                            variant="success"
+                            title="Done"
+                            className="!p-2 !text-sm flex-1"
+                          />
+                          <ActionButton
+                            onClick={() => deleteCompanion(companion.id)}
+                            variant="danger"
+                            title="Delete"
+                            className="!p-2 !text-sm"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        className="cursor-pointer hover:bg-gray-700 p-2 rounded transition-colors"
+                        onClick={() => setEditingCompanion(companion.id)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="text-xl font-bold text-white">
+                              {companion.name || 'Unnamed Character'}
+                            </h4>
+                            <p className="text-blue-400 font-medium">
+                              Player: {companion.realPlayer || 'Unknown'}
+                            </p>
+                            <p className="text-gray-300">
+                              {companion.characterClass || 'No class specified'}
+                            </p>
+                            {companion.notes && (
+                              <p className="text-gray-400 text-sm mt-2">
+                                {companion.notes}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-gray-500 text-sm">Click to edit</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Session Journal Section */}
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl border-2 border-purple-600">
+        <div 
+          className="flex items-center justify-between p-6 border-b border-gray-700 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          onClick={() => toggleStorySection('journal')}
+        >
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-purple-800 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg border-2 border-purple-500 mr-4">
+              📝
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold text-white">Session Journal</h2>
+              <p className="text-gray-300 font-medium">Notes, events, and story details</p>
+            </div>
+          </div>
+          <div className={`transform transition-transform duration-300 text-purple-400 ${
+            storyCollapsed.journal ? 'rotate-180' : ''
+          }`}>
+            ▼
+          </div>
+        </div>
+        
+        {!storyCollapsed.journal && (
+          <div className="p-6">
+            <div className="mb-4 flex gap-2">
+              <button
+                onClick={() => wrapSelectedText('**')}
+                className="px-3 py-1 bg-gray-700 text-white rounded border border-gray-600 hover:bg-gray-600 transition-colors text-sm font-bold"
+                title="Bold text - **text**"
+              >
+                B
+              </button>
+              <button
+                onClick={() => wrapSelectedText('*')}
+                className="px-3 py-1 bg-gray-700 text-white rounded border border-gray-600 hover:bg-gray-600 transition-colors text-sm italic"
+                title="Italic text - *text*"
+              >
+                I
+              </button>
+              <button
+                onClick={() => insertText('\n- ')}
+                className="px-3 py-1 bg-gray-700 text-white rounded border border-gray-600 hover:bg-gray-600 transition-colors text-sm"
+                title="New bullet point"
+              >
+                •
+              </button>
+              <button
+                onClick={() => wrapSelectedText('==', '==')}
+                className="px-3 py-1 bg-purple-700 text-white rounded border border-purple-600 hover:bg-purple-600 transition-colors text-sm"
+                title="Highlight important - ==text=="
+              >
+                !
+              </button>
+              <button
+                onClick={() => insertText('\n## ')}
+                className="px-3 py-1 bg-blue-700 text-white rounded border border-blue-600 hover:bg-blue-600 transition-colors text-sm"
+                title="New heading"
+              >
+                H
+              </button>
+            </div>
+            
+            <textarea
+              ref={journalTextareaRef}
+              value={displayJournalContent}
+              onChange={handleJournalChange}
+              onFocus={handleJournalFocus}
+              onBlur={handleJournalBlur}
+              className="w-full h-96 bg-gray-800 text-white p-4 rounded-xl border-2 border-gray-600 focus:border-purple-500 outline-none resize-none text-sm leading-relaxed font-mono"
+              placeholder="Write your session notes here..."
+            />
+            
+            <div className="mt-4 text-xs text-gray-400 flex justify-between items-center">
+              <span>💾 Auto-saves as you type</span>
+              <span>Use **bold**, *italic*, ==highlight==, - bullets, ## headings</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1506,6 +2514,23 @@ const DnDCompanionApp = () => {
               <User size={24} />
               <span className="text-lg">Story</span>
             </button>
+            <button
+              onClick={() => setActiveTab('journal')}
+              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 transform hover:scale-105 ${
+                activeTab === 'journal'
+                  ? isHidden 
+                    ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
+                    : 'text-green-400 border-b-4 border-green-400 bg-gray-700'
+                  : isHidden
+                    ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-t-lg'
+                    : 'text-gray-300 hover:text-green-400 hover:bg-gray-700 rounded-t-lg'
+              }`}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+              </svg>
+              <span className="text-lg">Journal</span>
+            </button>
           </div>
         </div>
       </nav>
@@ -1514,7 +2539,8 @@ const DnDCompanionApp = () => {
       <div className="max-w-6xl mx-auto">
         {activeTab === 'battle' && <BattleInterface />}
         {activeTab === 'stats' && <StatsPage />}
-        {activeTab === 'backstory' && <BackstoryPage />}
+        {activeTab === 'backstory' && <StoryPage />}
+        {activeTab === 'journal' && <SimpleJournalPage />}
       </div>
 
       {/* Floating Roll Button */}
@@ -1556,14 +2582,27 @@ const DnDCompanionApp = () => {
       {/* Roll Popup - Floating Box with Overlay */}
       {rollPopup.isOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-end justify-end p-6"
+          className={`fixed inset-0 z-50 flex p-4 transition-all duration-300 ${
+            isKeyboardOpen
+              ? 'items-start justify-center pt-8' // Center modal when keyboard is open
+              : 'items-end justify-end p-6' // Bottom-right when keyboard closed
+          }`}
           onClick={closeRollPopup}
+          style={{ 
+            height: isKeyboardOpen ? `${viewportHeight}px` : '100vh' 
+          }}
         >
           <div 
-            className={`w-80 rounded-2xl p-6 shadow-2xl border-2 transition-all duration-300 ${
+            className={`${
+              isKeyboardOpen 
+                ? 'w-full max-w-sm max-h-full' // Full width but constrained when keyboard open
+                : 'w-80' // Fixed width when keyboard closed
+            } rounded-2xl p-6 shadow-2xl border-2 transition-all duration-300 ${
               isHidden 
                 ? 'bg-gradient-to-br from-gray-800 to-purple-900 border-purple-600'
                 : 'bg-gradient-to-br from-gray-900 to-gray-800 border-gray-600'
+            } ${
+              isKeyboardOpen ? 'overflow-y-auto' : ''
             }`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1572,13 +2611,50 @@ const DnDCompanionApp = () => {
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-white">Quick Search</h2>
                 
+                {/* Quick Actions for Mobile */}
+                {isKeyboardOpen && (
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium text-gray-300">Quick Actions:</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['attack', 'initiative', 'perception', 'stealth', 'investigation', 'insight'].map(actionName => {
+                        const action = Object.values(rollActions).flat().find(a => 
+                          a.name.toLowerCase() === actionName || 
+                          a.name.toLowerCase().includes(actionName)
+                        );
+                        if (!action) return null;
+                        return (
+                          <button
+                            key={action.id}
+                            onClick={() => handleActionSelect(action)}
+                            className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                              isHidden
+                                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                          >
+                            {action.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                
                 <input
                   type="text"
                   placeholder="Search actions..."
                   value={rollPopup.searchTerm}
                   onChange={(e) => setRollPopup(prev => ({ ...prev, searchTerm: e.target.value }))}
-                  className="w-full p-3 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
+                  className={`w-full border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none ${
+                    isKeyboardOpen 
+                      ? 'p-4 text-lg' // Larger padding and text for mobile keyboards
+                      : 'p-3' // Normal size for desktop
+                  }`}
                   autoFocus
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                 />
                 
                 {(() => {
@@ -1605,7 +2681,11 @@ const DnDCompanionApp = () => {
                   const hasResults = Object.values(filtered).some(arr => arr.length > 0);
                   
                   return (
-                    <div className="space-y-4 max-h-64 overflow-y-auto">
+                    <div className={`space-y-4 overflow-y-auto ${
+                      isKeyboardOpen 
+                        ? 'max-h-48' // Smaller height when keyboard is open
+                        : 'max-h-64' // Normal height when keyboard closed
+                    }`}>
                       {Object.entries(filtered).map(([category, actions]) => {
                         if (actions.length === 0) return null;
                         return (
@@ -1616,7 +2696,11 @@ const DnDCompanionApp = () => {
                                 <button
                                   key={action.id}
                                   onClick={() => handleActionSelect(action)}
-                                  className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded-lg flex justify-between items-center transition-colors text-sm border border-gray-600 hover:border-gray-500"
+                                  className={`w-full text-left bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-lg flex justify-between items-center transition-colors text-sm border border-gray-600 hover:border-gray-500 ${
+                                    isKeyboardOpen 
+                                      ? 'p-3' // Larger touch targets when keyboard is open
+                                      : 'p-2' // Normal size when keyboard closed
+                                  }`}
                                 >
                                   <div className="flex items-center space-x-2">
                                     <span className="font-medium text-white">{action.name}</span>
@@ -1706,7 +2790,11 @@ const DnDCompanionApp = () => {
                           finalDamage
                         }));
                       }}
-                      className="w-full p-3 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:border-red-500 focus:outline-none text-lg"
+                      className={`w-full border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:border-red-500 focus:outline-none ${
+                        isKeyboardOpen 
+                          ? 'p-4 text-xl' // Larger padding and text for mobile keyboards
+                          : 'p-3 text-lg' // Normal size for desktop
+                      }`}
                       autoFocus
                     />
                   </div>
