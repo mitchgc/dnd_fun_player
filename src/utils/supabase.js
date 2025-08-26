@@ -4,25 +4,23 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Debug logging for environment variables
-console.log('Environment check:', {
-  url: supabaseUrl ? 'Present' : 'Missing',
-  urlValue: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'undefined',
-  key: supabaseAnonKey ? 'Present' : 'Missing',
-  keyValue: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'undefined',
-  mode: import.meta.env.MODE
-});
-
 // Check if we have valid Supabase credentials
 const hasValidCredentials = supabaseUrl && supabaseAnonKey && 
   supabaseUrl.startsWith('https://') && 
   supabaseAnonKey.startsWith('eyJ')
 
+// Add detailed validation logging
+console.log('Supabase validation:', {
+  hasUrl: !!supabaseUrl,
+  hasKey: !!supabaseAnonKey,
+  urlStartsWithHttps: supabaseUrl?.startsWith('https://'),
+  keyStartsWithEyJ: supabaseAnonKey?.startsWith('eyJ'),
+  finalResult: hasValidCredentials
+});
+
 if (!hasValidCredentials) {
   console.warn('Supabase not configured properly. Collaborative features will be disabled.');
   console.warn('To enable collaborative features, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file');
-  console.warn('Debug - URL valid:', supabaseUrl ? supabaseUrl.startsWith('https://') : false);
-  console.warn('Debug - Key valid:', supabaseAnonKey ? supabaseAnonKey.startsWith('eyJ') : false);
 }
 
 // Create supabase client only if we have valid credentials
