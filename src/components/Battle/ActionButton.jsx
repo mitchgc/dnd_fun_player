@@ -13,27 +13,27 @@ const ActionButton = ({
   className = '',
   loading = false 
 }) => {
-  const baseClasses = "font-semibold transition-all duration-300 rounded-xl border p-4";
+  const baseClasses = "font-semibold transition-all duration-200 rounded-xl border p-4 touch-ripple min-h-[44px] min-w-[44px]";
   
   const variantClasses = {
     primary: disabled 
       ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
-      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:scale-105 border-blue-500',
+      : 'bg-gradient-to-r from-blue-600 to-blue-700 active:from-blue-700 active:to-blue-800 text-white shadow-lg active:scale-95 border-blue-500',
     secondary: disabled
       ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600' 
-      : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white shadow-lg hover:scale-105 border-gray-500',
+      : 'bg-gradient-to-r from-gray-600 to-gray-700 active:from-gray-700 active:to-gray-800 text-white shadow-lg active:scale-95 border-gray-500',
     danger: disabled
       ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
-      : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:scale-105 border-red-500',
+      : 'bg-gradient-to-r from-red-600 to-red-700 active:from-red-700 active:to-red-800 text-white shadow-lg active:scale-95 border-red-500',
     success: disabled
       ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
-      : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:scale-105 border-green-500',
+      : 'bg-gradient-to-r from-green-600 to-green-700 active:from-green-700 active:to-green-800 text-white shadow-lg active:scale-95 border-green-500',
     purple: disabled
       ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
-      : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg hover:scale-105 border-purple-500',
+      : 'bg-gradient-to-r from-purple-600 to-purple-700 active:from-purple-700 active:to-purple-800 text-white shadow-lg active:scale-95 border-purple-500',
     teal: disabled
       ? 'bg-gray-700 text-gray-400 cursor-not-allowed border-gray-600'
-      : 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white shadow-lg hover:scale-105 border-teal-500'
+      : 'bg-gradient-to-r from-teal-600 to-teal-700 active:from-teal-700 active:to-teal-800 text-white shadow-lg active:scale-95 border-teal-500'
   };
 
   const renderContent = () => {

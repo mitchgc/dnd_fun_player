@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCollaborativeJournal } from '../../hooks/useCollaborativeJournal';
 
 export default function CollaborativeJournal() {
-  const { user, loading: authLoading, error: authError, isLocalMode } = useAuth();
+  const { user, loading: authLoading, error: authError } = useAuth();
   const [sessionCode, setSessionCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [journalId, setJournalId] = useState('');
@@ -27,18 +27,6 @@ export default function CollaborativeJournal() {
 
   // Load session from localStorage on mount
   useEffect(() => {
-    if (isLocalMode) {
-      // In local mode, load saved content and set up a basic session
-      const savedContent = localStorage.getItem('dnd-local-journal-content') || '';
-      const savedDisplayName = localStorage.getItem('dnd-display-name') || 'Player';
-      setLocalContent(savedContent);
-      setDisplayName(savedDisplayName);
-      setSessionCode('LOCAL');
-      setJournalId('local-journal');
-      setHasSession(true);
-      return;
-    }
-
     const savedSessionCode = localStorage.getItem('dnd-session-code');
     const savedDisplayName = localStorage.getItem('dnd-display-name');
     const savedJournalId = localStorage.getItem('dnd-journal-id');
@@ -49,7 +37,7 @@ export default function CollaborativeJournal() {
       setJournalId(savedJournalId);
       setHasSession(true);
     }
-  }, [isLocalMode]);
+  }, []);
 
   const handleSessionReady = (code, name, id) => {
     setSessionCode(code);
@@ -59,13 +47,6 @@ export default function CollaborativeJournal() {
   };
 
   const handleLeaveSession = () => {
-    if (isLocalMode) {
-      // In local mode, just clear the content
-      localStorage.removeItem('dnd-local-journal-content');
-      setLocalContent('');
-      return;
-    }
-
     // Clear session data
     localStorage.removeItem('dnd-session-code');
     localStorage.removeItem('dnd-display-name');
@@ -77,15 +58,9 @@ export default function CollaborativeJournal() {
     setHasSession(false);
   };
 
-  const handleLocalContentChange = (content) => {
-    setLocalContent(content);
-    localStorage.setItem('dnd-local-journal-content', content);
-  };
 
   const handleRefresh = async () => {
-    if (!isLocalMode) {
-      await Promise.all([refreshJournal(), refreshCollaborators()]);
-    }
+    await Promise.all([refreshJournal(), refreshCollaborators()]);
   };
 
   // Show loading state
@@ -100,8 +75,8 @@ export default function CollaborativeJournal() {
     );
   }
 
-  // Show auth error only if not in local mode
-  if (authError && !isLocalMode) {
+  // Show auth error
+  if (authError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="max-w-md mx-auto p-6 bg-red-900/20 border border-red-500/20 rounded-lg">
@@ -121,19 +96,19 @@ export default function CollaborativeJournal() {
     );
   }
 
-  // Show session manager if no active session (but not in local mode)
-  if (!hasSession && !isLocalMode) {
+  // Show session manager if no active session
+  if (!hasSession) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-900 to-black">
         <div className="container mx-auto px-4 py-8">
-          <SessionManager onSessionReady={handleSessionReady} user={user} isLocalMode={isLocalMode} />
+          <SessionManager onSessionReady={handleSessionReady} user={user} />
         </div>
       </div>
     );
   }
 
-  // Show journal loading state (but not in local mode)
-  if (journalLoading && !isLocalMode) {
+  // Show journal loading state
+  if (journalLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-900 to-black">
         <div className="container mx-auto px-4 py-8">
@@ -146,8 +121,8 @@ export default function CollaborativeJournal() {
     );
   }
 
-  // Show journal error (but not in local mode)
-  if (journalError && !isLocalMode) {
+  // Show journal error
+  if (journalError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-900 to-black">
         <div className="container mx-auto px-4 py-8">
@@ -182,21 +157,9 @@ export default function CollaborativeJournal() {
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-900 to-black">
       <div className="container mx-auto px-4 py-8">
         
-        {/* Local Mode Banner */}
-        {isLocalMode && (
-          <div className="max-w-4xl mx-auto mb-4">
-            <div className="bg-blue-900/20 border border-blue-500/20 rounded-lg p-4 flex items-center space-x-3">
-              <AlertCircle className="text-blue-400" size={20} />
-              <div className="flex-1">
-                <p className="text-blue-400 font-medium">Local Mode</p>
-                <p className="text-blue-300 text-sm">Your journal is saved locally. Collaborative features are not available.</p>
-              </div>
-            </div>
-          </div>
-        )}
         
         {/* Connection Status Banner */}
-        {!isConnected && !isLocalMode && (
+        {!isConnected && (
           <div className="max-w-4xl mx-auto mb-4">
             <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-4 flex items-center space-x-3">
               <WifiOff className="text-yellow-400" size={20} />
@@ -209,7 +172,7 @@ export default function CollaborativeJournal() {
         )}
 
         {/* Last Update Indicator */}
-        {lastUpdateTime && isConnected && !isLocalMode && (
+        {lastUpdateTime && isConnected && (
           <div className="max-w-4xl mx-auto mb-4">
             <div className="bg-green-900/20 border border-green-500/20 rounded-lg p-3 flex items-center space-x-3">
               <Wifi className="text-green-400" size={16} />
@@ -226,10 +189,9 @@ export default function CollaborativeJournal() {
           journalId={journalId}
           displayName={displayName}
           user={user}
-          initialContent={isLocalMode ? localContent : (journal?.content || '')}
-          collaborators={isLocalMode ? [] : collaborators}
-          onContentChange={isLocalMode ? handleLocalContentChange : handleLocalContentUpdate}
-          isLocalMode={isLocalMode}
+          initialContent={journal?.content || ''}
+          collaborators={collaborators}
+          onContentChange={handleLocalContentUpdate}
         />
 
         {/* Leave Session Button */}
@@ -238,7 +200,7 @@ export default function CollaborativeJournal() {
             onClick={handleLeaveSession}
             className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors"
           >
-            {isLocalMode ? 'Clear Journal' : 'Leave Session'}
+            Leave Session
           </button>
         </div>
       </div>

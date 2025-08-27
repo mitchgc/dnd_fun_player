@@ -52,34 +52,6 @@ const RollSearch = ({
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-white">Quick Search</h2>
       
-      {/* Quick Actions for Mobile */}
-      {isKeyboardOpen && (
-        <div className="space-y-3">
-          <div className="text-sm font-medium text-gray-300">Quick Actions:</div>
-          <div className="grid grid-cols-2 gap-2">
-            {['attack', 'initiative', 'perception', 'stealth', 'investigation', 'insight'].map(actionName => {
-              const action = Object.values(rollActions).flat().find(a => 
-                a.name.toLowerCase() === actionName || 
-                a.name.toLowerCase().includes(actionName)
-              );
-              if (!action) return null;
-              return (
-                <button
-                  key={action.id}
-                  onClick={() => onActionSelect(action)}
-                  className={`p-3 rounded-lg text-sm font-medium transition-colors ${
-                    isHidden
-                      ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  {action.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
       
       <input
         type="text"
@@ -91,7 +63,6 @@ const RollSearch = ({
             ? 'p-4 text-lg' // Larger padding and text for mobile keyboards
             : 'p-3' // Normal size for desktop
         }`}
-        autoFocus
         autoComplete="off"
         autoCapitalize="none"
         autoCorrect="off"

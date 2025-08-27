@@ -1,13 +1,24 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { hapticFeedback, useLongPress } from '../utils/touchUtils';
 
 interface FloatingRollButtonProps {
   isHidden: boolean;
   onClick: () => void;
+  onLongPress?: () => void;
 }
 
-const FloatingRollButton: React.FC<FloatingRollButtonProps> = ({ isHidden, onClick }) => {
+const FloatingRollButton: React.FC<FloatingRollButtonProps> = ({ isHidden, onClick, onLongPress }) => {
   const buttonRef = React.useRef<HTMLButtonElement>(null);
+  
+  // Long press handler for secondary actions
+  const longPressHandlers = useLongPress(
+    onLongPress || (() => console.log('Long press - could open advanced roll menu')),
+    {
+      onStart: () => hapticFeedback.light(),
+      onFinish: () => hapticFeedback.medium()
+    }
+  );
 
   React.useEffect(() => {
     const button = buttonRef.current;
@@ -17,20 +28,18 @@ const FloatingRollButton: React.FC<FloatingRollButtonProps> = ({ isHidden, onCli
     button.style.setProperty('position', 'fixed', 'important');
     button.style.setProperty('bottom', '24px', 'important');
     button.style.setProperty('right', '24px', 'important');
-    button.style.setProperty('z-index', '2147483647', 'important');
+    button.style.setProperty('z-index', '100', 'important');
   }, []);
 
   const buttonElement = (
     <button
       ref={buttonRef}
-      onClick={onClick}
       style={{
         // Appearance
         width: '96px',
         height: '96px',
         borderRadius: '50%',
         border: 'none',
-        cursor: 'pointer',
         background: `linear-gradient(135deg, ${isHidden ? '#8b5cf6' : '#3b82f6'} 0%, ${isHidden ? '#7c3aed' : '#2563eb'} 100%)`,
         boxShadow: `0 8px 32px ${isHidden ? 'rgba(139, 92, 246, 0.4)' : 'rgba(59, 130, 246, 0.4)'}`,
         color: 'white',
@@ -48,13 +57,26 @@ const FloatingRollButton: React.FC<FloatingRollButtonProps> = ({ isHidden, onCli
         userSelect: 'none',
         WebkitTouchCallout: 'none',
         WebkitUserSelect: 'none',
-        transition: 'box-shadow 0.2s ease'
+        transition: 'box-shadow 0.2s ease, transform 0.1s ease'
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = `0 12px 40px ${isHidden ? 'rgba(139, 92, 246, 0.5)' : 'rgba(59, 130, 246, 0.5)'}`;
+      onTouchStart={(e) => {
+        e.currentTarget.style.boxShadow = `0 12px 40px ${isHidden ? 'rgba(139, 92, 246, 0.6)' : 'rgba(59, 130, 246, 0.6)'}`;
+        e.currentTarget.style.transform = 'scale(0.95)';
+        hapticFeedback.light();
+        longPressHandlers.onTouchStart(e);
       }}
-      onMouseLeave={(e) => {
+      onTouchEnd={(e) => {
         e.currentTarget.style.boxShadow = `0 8px 32px ${isHidden ? 'rgba(139, 92, 246, 0.4)' : 'rgba(59, 130, 246, 0.4)'}`;
+        e.currentTarget.style.transform = 'scale(1)';
+        longPressHandlers.onTouchEnd(e);
+      }}
+      onTouchCancel={longPressHandlers.onTouchCancel}
+      onClick={(e) => {
+        longPressHandlers.onClick(e);
+        if (!e.defaultPrevented) {
+          onClick();
+          hapticFeedback.medium();
+        }
       }}
       aria-label="Roll dice"
       role="button"

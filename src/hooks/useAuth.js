@@ -5,25 +5,12 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isLocalMode, setIsLocalMode] = useState(false);
 
   useEffect(() => {
-    // Check for local mode flag
-    const useLocalModeFlag = localStorage.getItem('useLocalMode') === 'true';
-    
     // Check if Supabase is configured
-    if (!isSupabaseConfigured || useLocalModeFlag) {
-      console.warn(useLocalModeFlag ? 'Local mode requested by user.' : 'Supabase not configured. Switching to local mode.');
-      // Create a local user for local mode
-      const localUser = {
-        id: `local-user-${Date.now()}`,
-        email: 'local@example.com',
-        user_metadata: { display_name: 'Local User' },
-        isLocal: true
-      };
-      console.log('🏠 Created local user:', localUser);
-      setUser(localUser);
-      setIsLocalMode(true);
+    if (!isSupabaseConfigured) {
+      console.error('Supabase not configured.');
+      setError('Authentication service not configured');
       setLoading(false);
       return;
     }
@@ -39,25 +26,13 @@ export function useAuth() {
         if (currentUser) {
           console.log('👤 Found existing user:', currentUser);
           setUser(currentUser);
-          setIsLocalMode(false);
         } else {
           console.log('❌ No existing user, waiting for authentication...');
           setUser(null);
-          setIsLocalMode(false);
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
-        console.warn('Authentication failed. Switching to local mode.');
-        // Fall back to local mode on any auth error
-        const localUser = {
-          id: `local-user-${Date.now()}`,
-          email: 'local@example.com',
-          user_metadata: { display_name: 'Local User' },
-          isLocal: true
-        };
-        setUser(localUser);
-        setIsLocalMode(true);
-        setError(null); // Clear error since we're in local mode
+        setError(err.message);
       } finally {
         setLoading(false);
       }
@@ -65,18 +40,16 @@ export function useAuth() {
 
     initializeAuth();
 
-    // Listen for auth state changes only if Supabase is available
+    // Listen for auth state changes
     let subscription;
-    if (supabase && !isLocalMode) {
+    if (supabase) {
       const { data } = supabase.auth.onAuthStateChange(
         async (event, session) => {
           if (event === 'SIGNED_IN' && session?.user) {
             setUser(session.user);
-            setIsLocalMode(false);
             setError(null);
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
-            setIsLocalMode(false);
           }
         }
       );
@@ -86,14 +59,9 @@ export function useAuth() {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [isLocalMode]);
+  }, []);
 
   const signInWithGoogleAuth = async () => {
-    if (isLocalMode) {
-      console.warn('Cannot use Google auth in local mode');
-      return false;
-    }
-    
     if (!isSupabaseConfigured) {
       console.error('Supabase not configured');
       return false;
@@ -113,13 +81,6 @@ export function useAuth() {
   };
 
   const signOutUser = async () => {
-    if (isLocalMode) {
-      console.log('Switching from local mode to unauthenticated');
-      setUser(null);
-      setIsLocalMode(false);
-      return true;
-    }
-    
     if (!isSupabaseConfigured) {
       return false;
     }
@@ -138,13 +99,8 @@ export function useAuth() {
   };
 
   const ensureAuthenticated = async () => {
-    if (isLocalMode) {
-      console.log('🏠 Using local mode user for authentication');
-      return user; // In local mode, always return the local user
-    }
-    
     if (!isSupabaseConfigured) {
-      throw new Error('Supabase not configured and not in local mode');
+      throw new Error('Authentication service not configured');
     }
     
     if (!user) {
@@ -159,7 +115,6 @@ export function useAuth() {
     user,
     loading,
     error,
-    isLocalMode,
     ensureAuthenticated,
     signInWithGoogle: signInWithGoogleAuth,
     signOut: signOutUser

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Sword, Shield, User } from 'lucide-react';
 
-const AuthScreen = ({ onGoogleSignIn, onLocalMode, loading, error }) => {
+const AuthScreen = ({ onGoogleSignIn, loading, error }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-900 to-black flex items-center justify-center p-4">
       <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-2xl p-8 border-2 border-blue-600 max-w-md w-full">
@@ -32,25 +32,6 @@ const AuthScreen = ({ onGoogleSignIn, onLocalMode, loading, error }) => {
             <span>{loading ? 'Signing in...' : 'Continue with Google'}</span>
           </button>
 
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-600"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-800 text-gray-400">or</span>
-            </div>
-          </div>
-
-          {/* Local Mode */}
-          <button
-            onClick={onLocalMode}
-            disabled={loading}
-            className="w-full flex items-center justify-center space-x-3 bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <User size={20} />
-            <span>Use Local Mode (No Sync)</span>
-          </button>
         </div>
 
         {/* Error Message */}
@@ -62,7 +43,7 @@ const AuthScreen = ({ onGoogleSignIn, onLocalMode, loading, error }) => {
 
         {/* Info */}
         <div className="mt-6 p-4 bg-gray-800 rounded-lg">
-          <h3 className="text-white font-semibold mb-2">Why sign in?</h3>
+          <h3 className="text-white font-semibold mb-2">Features</h3>
           <ul className="text-gray-300 text-sm space-y-1">
             <li>• Sync characters across devices</li>
             <li>• Collaborative journals</li>

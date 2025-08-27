@@ -11,7 +11,6 @@ export default function CollaborativeEditor({
   collaborators = [],
   onContentChange,
   onCollaboratorsChange,
-  isLocalMode = false
 }) {
   const [content, setContent] = useState(initialContent);
   const [lastSavedContent, setLastSavedContent] = useState(initialContent);
@@ -43,10 +42,6 @@ export default function CollaborativeEditor({
 
   // Update presence periodically
   useEffect(() => {
-    // Skip presence updates in local mode
-    if (isLocalMode) {
-      return;
-    }
 
     const updateUserPresence = async () => {
       if (journalId && user && isOnline) {
@@ -61,7 +56,7 @@ export default function CollaborativeEditor({
     const interval = setInterval(updateUserPresence, 30000);
 
     return () => clearInterval(interval);
-  }, [journalId, user, isOnline, isLocalMode]);
+  }, [journalId, user, isOnline]);
 
   // Debounced save function
   const debouncedSave = useCallback(async (newContent) => {
@@ -72,12 +67,6 @@ export default function CollaborativeEditor({
     setSaveStatus('unsaved');
 
     saveTimeoutRef.current = setTimeout(async () => {
-      // In local mode, just call the content change handler immediately
-      if (isLocalMode) {
-        onContentChange && onContentChange(newContent);
-        setSaveStatus('saved');
-        return;
-      }
 
       if (!isOnline) {
         setSaveStatus('error');
@@ -101,7 +90,7 @@ export default function CollaborativeEditor({
         setSaveStatus('error');
       }
     }, 1000); // Save after 1 second of inactivity
-  }, [sessionCode, isOnline, onContentChange, isLocalMode]);
+  }, [sessionCode, isOnline, onContentChange]);
 
   // Handle content changes
   const handleContentChange = useCallback((event) => {
@@ -152,46 +141,36 @@ export default function CollaborativeEditor({
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <h2 className="text-2xl font-bold text-white flex items-center">
-                📝 {isLocalMode ? 'Personal Journal' : 'Collaborative Journal'}
+                📝 Collaborative Journal
               </h2>
-              {!isOnline && !isLocalMode && (
+              {!isOnline && (
                 <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-full">
                   Offline
-                </span>
-              )}
-              {isLocalMode && (
-                <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
-                  Local
                 </span>
               )}
             </div>
             
             <div className="flex items-center space-x-4">
               {/* Save Status */}
-              {!isLocalMode && (
-                <div className="flex items-center space-x-2">
-                  <StatusIcon size={16} className={statusInfo.color} />
-                  <span className={`text-sm ${statusInfo.color}`}>
-                    {statusInfo.text}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center space-x-2">
+                <StatusIcon size={16} className={statusInfo.color} />
+                <span className={`text-sm ${statusInfo.color}`}>
+                  {statusInfo.text}
+                </span>
+              </div>
               
               {/* Collaborator Count */}
-              {!isLocalMode && (
-                <div className="flex items-center space-x-2 text-gray-300">
-                  <Users size={16} />
-                  <span className="text-sm">
-                    {collaboratorCount} {collaboratorCount === 1 ? 'user' : 'users'}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center space-x-2 text-gray-300">
+                <Users size={16} />
+                <span className="text-sm">
+                  {collaboratorCount} {collaboratorCount === 1 ? 'user' : 'users'}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Session Code and Collaborators */}
-          {!isLocalMode && (
-            <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <span className="text-gray-300">Session Code:</span>
                 <button
@@ -227,14 +206,7 @@ export default function CollaborativeEditor({
                 </div>
               )}
             </div>
-          )}
           
-          {/* Local Mode Info */}
-          {isLocalMode && (
-            <div className="text-gray-300">
-              <p className="text-sm">Your journal is saved locally on this device.</p>
-            </div>
-          )}
         </div>
 
         {/* Editor */}
@@ -243,19 +215,16 @@ export default function CollaborativeEditor({
             ref={editorRef}
             value={content}
             onChange={handleContentChange}
-            placeholder={isLocalMode ? 
-              "Start writing your personal notes here... \n\nUse markdown formatting:\n# Headings\n**Bold text**\n*Italic text*\n- Bullet points" :
-              "Start writing your session notes here... \n\nUse markdown formatting:\n# Headings\n**Bold text**\n*Italic text*\n- Bullet points\n\nShare the session code with your party to collaborate in real-time!"
-            }
+            placeholder="Start writing your session notes here... \n\nUse markdown formatting:\n# Headings\n**Bold text**\n*Italic text*\n- Bullet points\n\nShare the session code with your party to collaborate in real-time!"
             className="w-full h-96 bg-gray-800 border border-gray-600 rounded-lg p-4 text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             style={{ 
               minHeight: '400px',
               fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace'
             }}
-            disabled={!isOnline && !isLocalMode}
+            disabled={!isOnline}
           />
           
-          {!isOnline && !isLocalMode && (
+          {!isOnline && (
             <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500/20 rounded-lg">
               <p className="text-yellow-400 text-sm">
                 You're currently offline. Changes will be saved when you reconnect to the internet.

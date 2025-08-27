@@ -34,7 +34,7 @@ const CharacterDropdown = ({ currentCharacterId, switchCharacter, currentCharact
       {/* Dropdown Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700/80 backdrop-blur-sm border border-gray-600/50 text-white hover:bg-gray-600/80 transition-all duration-200"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700/80 backdrop-blur-sm border border-gray-600/50 text-white active:bg-gray-600/80 transition-all duration-200 touch-ripple min-h-[44px]"
       >
         <User className="w-5 h-5" />
         <div className="text-left hidden sm:block">
@@ -62,7 +62,7 @@ const CharacterDropdown = ({ currentCharacterId, switchCharacter, currentCharact
                 <button
                   key={char.id}
                   onClick={() => handleCharacterSelect(char.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-700/80 transition-colors duration-200 first:rounded-t-lg last:rounded-b-lg ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-700/80 transition-colors duration-200 first:rounded-t-lg last:rounded-b-lg min-h-[44px] ${
                     char.id === currentCharacterId ? 'bg-gray-700/60' : ''
                   }`}
                 >

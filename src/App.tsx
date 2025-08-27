@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Sword, Shield, User, BookOpen, Sparkles } from 'lucide-react';
+import { Sword, Shield, User, BookOpen, Sparkles, Menu } from 'lucide-react';
 
 // Import new components
 import DefensivePanel from './components/Battle/DefensivePanel';
@@ -9,6 +9,7 @@ import CharacterToggle from './components/Character/CharacterToggle';
 import AuthScreen from './components/Auth/AuthScreen';
 
 import CollaborativeJournal from './components/Journal/CollaborativeJournal';
+import MobileNav from './components/Navigation/MobileNav';
 
 // Import Character Context
 import { CharacterProvider, useCharacter } from './contexts/CharacterContext';
@@ -28,10 +29,24 @@ const calcProficiencyBonus = (level) => Math.ceil(level / 4) + 1;
 
 const DnDCompanionApp = () => {
   // Initialize authentication
-  const { user, loading: authLoading, isLocalMode, error: authError, signInWithGoogle, signOut } = useAuth();
+  const { user, loading: authLoading, error: authError, signInWithGoogle, signOut } = useAuth();
   
   // Use CharacterContext for all character data (must be called before any early returns)
   const { activeCharacter, isLoading, error, switchCharacter, updateCharacterState } = useCharacter();
+  
+  // Handle page visibility for battery optimization
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        document.body.classList.add('page-hidden');
+      } else {
+        document.body.classList.remove('page-hidden');
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
   
   // Local state for UI management - MUST be declared before any early returns
   const [isHidden, setIsHidden] = useState(false);
@@ -72,9 +87,8 @@ const DnDCompanionApp = () => {
   // Memoize auth status to prevent reference changes causing re-renders
   const authStatus = React.useMemo(() => ({
     user: user ? 'authenticated' : 'not authenticated', 
-    authLoading, 
-    isLocalMode
-  }), [user, authLoading, isLocalMode]);
+    authLoading
+  }), [user, authLoading]);
   
   // Memoize auth status logging to prevent excessive re-renders
   React.useEffect(() => {
@@ -575,23 +589,17 @@ const DnDCompanionApp = () => {
     await signInWithGoogle();
   };
 
-  const handleLocalMode = () => {
-    // Set a flag in localStorage to trigger local mode on next load
-    localStorage.setItem('useLocalMode', 'true');
-    window.location.reload();
-  };
 
   // Show loading screen while authentication is in progress
   if (authLoading) {
     return LoadingScreen;
   }
 
-  // Show auth screen if not authenticated and not in local mode
-  if (!user && !isLocalMode) {
+  // Show auth screen if not authenticated
+  if (!user) {
     return (
       <AuthScreen
         onGoogleSignIn={handleGoogleSignIn}
-        onLocalMode={handleLocalMode}
         loading={authLoading}
         error={authError}
       />
@@ -971,13 +979,14 @@ const DnDCompanionApp = () => {
         : 'bg-gradient-to-br from-gray-800 via-gray-900 to-black'
     }`}>
       
-      {/* Enhanced Navigation */}
+      {/* Responsive Navigation */}
       <nav className={`shadow-2xl border-b-4 transition-all duration-1000 ${
         isHidden 
           ? 'bg-gray-900 border-purple-600'
           : 'bg-gray-800 border-gray-600'
       }`}>
-        <div className="max-w-6xl mx-auto px-4">
+        {/* Desktop Navigation (hidden on mobile) */}
+        <div className="hidden md:block max-w-6xl mx-auto px-4">
           <div className="flex justify-between items-center">
             <div className="flex space-x-8">
               <button
@@ -988,8 +997,8 @@ const DnDCompanionApp = () => {
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
                     : 'text-blue-400 border-b-4 border-blue-400 bg-gray-700'
                   : isHidden
-                    ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-t-lg'
-                    : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700 rounded-t-lg'
+                    ? 'text-gray-300 active:text-purple-400 active:bg-gray-800 rounded-t-lg'
+                    : 'text-gray-300 active:text-blue-400 active:bg-gray-700 rounded-t-lg'
               }`}
             >
               <Sword size={24} />
@@ -1004,8 +1013,8 @@ const DnDCompanionApp = () => {
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
                     : 'text-blue-400 border-b-4 border-blue-400 bg-gray-700'
                   : isHidden
-                    ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-t-lg'
-                    : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700 rounded-t-lg'
+                    ? 'text-gray-300 active:text-purple-400 active:bg-gray-800 rounded-t-lg'
+                    : 'text-gray-300 active:text-blue-400 active:bg-gray-700 rounded-t-lg'
               }`}
             >
               <Shield size={24} />
@@ -1019,8 +1028,8 @@ const DnDCompanionApp = () => {
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
                     : 'text-blue-400 border-b-4 border-blue-400 bg-gray-700'
                   : isHidden
-                    ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-t-lg'
-                    : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700 rounded-t-lg'
+                    ? 'text-gray-300 active:text-purple-400 active:bg-gray-800 rounded-t-lg'
+                    : 'text-gray-300 active:text-blue-400 active:bg-gray-700 rounded-t-lg'
               }`}
             >
               <User size={24} />
@@ -1034,13 +1043,11 @@ const DnDCompanionApp = () => {
                     ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
                     : 'text-green-400 border-b-4 border-green-400 bg-gray-700'
                   : isHidden
-                    ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-t-lg'
-                    : 'text-gray-300 hover:text-green-400 hover:bg-gray-700 rounded-t-lg'
+                    ? 'text-gray-300 active:text-purple-400 active:bg-gray-800 rounded-t-lg'
+                    : 'text-gray-300 active:text-green-400 active:bg-gray-700 rounded-t-lg'
               }`}
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
-              </svg>
+              <BookOpen size={24} />
               <span className="text-lg">Journal</span>
             </button>
             </div>
@@ -1054,11 +1061,11 @@ const DnDCompanionApp = () => {
                 className="py-2"
               />
               
-              {/* Sign Out Button (only show if authenticated, not in local mode) */}
-              {user && !isLocalMode && (
+              {/* Sign Out Button */}
+              {user && (
                 <button
                   onClick={signOut}
-                  className="text-gray-400 hover:text-red-400 transition-colors duration-200 px-3 py-2 rounded-lg hover:bg-gray-800"
+                  className="text-gray-400 active:text-red-400 transition-colors duration-200 px-3 py-2 rounded-lg active:bg-gray-800"
                   title="Sign Out"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -1068,6 +1075,19 @@ const DnDCompanionApp = () => {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Mobile Navigation (visible only on mobile) */}
+        <div className="md:hidden">
+          <MobileNav
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            isHidden={isHidden}
+            activeCharacter={activeCharacter}
+            switchCharacter={switchCharacter}
+            user={user}
+            signOut={signOut}
+          />
         </div>
       </nav>
 

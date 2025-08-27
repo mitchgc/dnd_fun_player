@@ -242,6 +242,23 @@
     padding-right: env(safe-area-inset-right);
   }
   
+  /* Enhanced iOS safe areas for fixed positioned elements */
+  .safe-area-bottom {
+    bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+  
+  .safe-area-top {
+    top: calc(24px + env(safe-area-inset-top));
+  }
+  
+  /* Keyboard-aware positioning for mobile */
+  @media (max-height: 600px) {
+    .fab-button {
+      bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+      right: calc(16px + env(safe-area-inset-right)) !important;
+    }
+  }
+  
   .hardware-accelerated {
     /* transform: translateZ(0); */
     will-change: transform;
@@ -275,10 +292,40 @@
     border: 1px solid rgba(255, 255, 255, 0.125);
   }
   
-  /* Modern floating action button */
-  .fab-button {
-    position: fixed !important;
-    z-index: 10000 !important;
+  /* Modern floating action button - using CSS layers for better z-index management */
+  @layer floating-elements {
+    .fab-button {
+      position: fixed !important;
+      z-index: 100 !important; /* Reduced from excessive 10000 */
+    }
+  }
+  
+  /* Touch ripple effect */
+  .touch-ripple {
+    position: relative;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  
+  .touch-ripple:active::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: ripple 0.6s ease-out;
+  }
+  
+  @keyframes ripple {
+    to {
+      width: 100px;
+      height: 100px;
+      opacity: 0;
+    }
   }
   
   @media (prefers-reduced-motion: reduce) {
@@ -305,6 +352,75 @@
   
   .animate-wiggle {
     animation: wiggle 1s ease-in-out infinite;
+  }
+  
+  /* Pause infinite animations when tab is not visible */
+  @media (prefers-reduced-motion: no-preference) {
+    .animate-bounce-gentle,
+    .animate-pulse-slow,
+    .animate-wiggle,
+    .critical-glow,
+    .magic-sparkle::after {
+      animation-play-state: running;
+    }
+  }
+  
+  /* Pause animations when page is hidden (battery saving) */
+  .page-hidden .animate-bounce-gentle,
+  .page-hidden .animate-pulse-slow,
+  .page-hidden .animate-wiggle,
+  .page-hidden .critical-glow,
+  .page-hidden .magic-sparkle::after {
+    animation-play-state: paused;
+  }
+  
+  /* Container queries for responsive components */
+  @container (max-width: 300px) {
+    .dice-container {
+      transform: scale(0.8);
+    }
+    
+    .action-buttons {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+  }
+  
+  @container (min-width: 600px) {
+    .dice-container {
+      transform: scale(1.2);
+    }
+    
+    .action-buttons {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+    }
+  }
+  
+  /* CSS Layers for better z-index management */
+  @layer base, components, utilities, floating-elements;
+  
+  /* Modern CSS features */
+  .modern-card {
+    background: color-mix(in srgb, var(--color-dnd-purple-500) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-dnd-purple-400) 20%, transparent);
+  }
+  
+  .modern-button {
+    background: color-mix(in srgb, var(--color-dnd-blue) 80%, white 20%);
+    transition: background 0.2s ease, transform 0.1s ease;
+  }
+  
+  .modern-button:active {
+    background: color-mix(in srgb, var(--color-dnd-blue) 90%, black 10%);
+    transform: scale(0.98);
+  }
+  
+  /* Enhanced focus states for accessibility */
+  .focus-ring:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--color-dnd-blue) 60%, transparent);
+    outline-offset: 2px;
   }
 }
 
@@ -406,9 +522,6 @@ body {
   border-radius: 10px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
-}
 
 /* Prevent text selection on UI elements (but allow on content) */
 .no-select {
@@ -422,12 +535,18 @@ body {
 
 /* Custom button hover effects */
 .btn-hover-lift {
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
 }
 
-.btn-hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+.btn-hover-lift:active {
+  transform: translateY(-1px) scale(0.98);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-hover-lift:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
 }
 
 /* Dice animation */
@@ -492,14 +611,20 @@ body {
   }
 }
 
-/* Card hover effects */
+/* Card touch effects */
 .card-hover {
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
 }
 
-.card-hover:hover {
-  transform: translateY(-5px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+.card-hover:active {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+}
+
+.card-hover:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
 }
 
 /* Health bar animation */

@@ -34,17 +34,43 @@ const RollResult = ({
 
     // Build damage dice array
     const damageDice = [];
+    const isCritical = result.isCritical || result.attackRoll === 20;
+    
     if (result.weaponDiceSize) {
-      damageDice.push({
-        sides: result.weaponDiceSize,
-        value: result.baseDamageRoll - (selectedAction?.damageBonus || 0)
-      });
+      const totalWeaponDamage = result.baseDamageRoll - (selectedAction?.damageBonus || 0);
+      
+      if (isCritical) {
+        // For critical hits, we need to show 2 dice (the original die + the critical die)
+        // Since diceUtils already rolled both dice and gave us the total, we need to approximate the individual rolls
+        // This is not perfect but gives the right visual representation
+        const avgRoll = (result.weaponDiceSize + 1) / 2; // Average roll for the die
+        const firstDie = Math.max(1, Math.min(result.weaponDiceSize, Math.round(totalWeaponDamage / 2)));
+        const secondDie = totalWeaponDamage - firstDie;
+        
+        damageDice.push({
+          sides: result.weaponDiceSize,
+          value: firstDie
+        });
+        damageDice.push({
+          sides: result.weaponDiceSize,
+          value: secondDie,
+          criticalExtra: true
+        });
+      } else {
+        // Normal hit - just one die
+        damageDice.push({
+          sides: result.weaponDiceSize,
+          value: totalWeaponDamage
+        });
+      }
     }
+    
     if (result.sneakAttackRolls && result.sneakAttackRolls.length > 0) {
       result.sneakAttackRolls.forEach((roll, index) => {
         damageDice.push({
           sides: 6,
-          value: roll
+          value: roll,
+          isCritical: isCritical && index >= result.sneakAttackRolls.length / 2 // Second half are critical bonus dice
         });
       });
     }
@@ -167,14 +193,6 @@ const RollResult = ({
           {result.type === 'spell_save' && renderSpellSaveResult()}
           {result.type !== 'attack' && result.type !== 'healing' && result.type !== 'spell_save' && renderStandardResult()}
         </div>
-        
-        {result.roll === 20 && (
-          <div className="text-yellow-400 font-bold text-lg">NATURAL 20! ⭐</div>
-        )}
-        
-        {result.roll === 1 && (
-          <div className="text-red-400 font-bold text-lg">NATURAL 1! 💥</div>
-        )}
         
         {selectedAction?.id === 'stealth' && result.total >= 15 && (
           <div className="text-purple-400 font-bold text-lg mt-2">Successfully Hidden! 👤</div>

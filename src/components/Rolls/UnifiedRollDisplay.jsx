@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { Target, Eye, Sword, Shield, Heart, Sparkles, Dice6 } from 'lucide-react';
 import { formatRelativeTime } from '../../utils/timeUtils';
 
-const UnifiedRollDisplay = ({ roll, className = '' }) => {
+const UnifiedRollDisplay = ({ roll, className = '', showCriticals = true }) => {
   const getIconAndColorForRollType = (type) => {
     switch (type) {
       case 'attack':
@@ -30,6 +30,7 @@ const UnifiedRollDisplay = ({ roll, className = '' }) => {
   const getDiceHighlight = (die) => {
     if (die.advantage) return 'text-yellow-400'; // Gold for advantage
     if (die.disadvantage) return 'text-red-400'; // Red for disadvantage
+    if (die.criticalExtra || die.isCritical) return 'text-yellow-400'; // Gold for critical dice
     return 'text-gray-300'; // Normal
   };
 
@@ -39,6 +40,9 @@ const UnifiedRollDisplay = ({ roll, className = '' }) => {
     }
     if (die.disadvantage) {
       return `d${die.sides} Disadvantage`;
+    }
+    if (die.criticalExtra) {
+      return `d${die.sides} (Crit)`;
     }
     return `d${die.sides}`;
   };
@@ -58,6 +62,17 @@ const UnifiedRollDisplay = ({ roll, className = '' }) => {
   };
 
   const { icon, color } = getIconAndColorForRollType(roll.type);
+
+  // Check for critical hits/misses on d20 rolls
+  const hasNatural20 = showCriticals && roll.breakdown.some(item => 
+    item.type === 'die' && item.sides === 20 && 
+    (item.value === 20 || (item.advantage && item.advantage.includes(20)) || (item.disadvantage && item.disadvantage.includes(20)))
+  );
+  
+  const hasNatural1 = showCriticals && roll.breakdown.some(item => 
+    item.type === 'die' && item.sides === 20 && 
+    (item.value === 1 || (item.advantage && item.advantage.includes(1)) || (item.disadvantage && item.disadvantage.includes(1)))
+  );
 
   return (
     <div className={`bg-gray-800 rounded-lg border border-gray-600 overflow-hidden ${className}`}>
@@ -116,6 +131,22 @@ const UnifiedRollDisplay = ({ roll, className = '' }) => {
           </div>
         ))}
       </div>
+
+      {/* Critical Hit/Miss Display */}
+      {(hasNatural20 || hasNatural1) && (
+        <div className="px-3 pb-3">
+          {hasNatural20 && (
+            <div className="text-yellow-400 font-bold text-sm text-center">
+              NATURAL 20! ⭐
+            </div>
+          )}
+          {hasNatural1 && (
+            <div className="text-red-400 font-bold text-sm text-center">
+              NATURAL 1! 💥
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -134,7 +165,8 @@ UnifiedRollDisplay.propTypes = {
       disadvantage: PropTypes.oneOfType([PropTypes.bool, PropTypes.array]) // for disadvantage dice
     })).isRequired
   }).isRequired,
-  className: PropTypes.string
+  className: PropTypes.string,
+  showCriticals: PropTypes.bool
 };
 
 export default UnifiedRollDisplay;
