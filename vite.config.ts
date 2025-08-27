@@ -51,7 +51,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000
   },
   server: {
-    port: 3000,
+    port: 3002,
     open: true,
     hmr: { 
       overlay: false 

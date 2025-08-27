@@ -443,6 +443,8 @@ const DnDCompanionApp = () => {
             name: ability.ability_name,
             damageRoll,
             damage: damageRoll,
+            total: damageRoll, // Add total field for RollResult component
+            roll: damageRoll, // Add roll field for consistency
             spellDC,
             saveType: ability.ability_data?.save_type || 'constitution',
             damageType: ability.ability_data?.damage_type || 'poison'
