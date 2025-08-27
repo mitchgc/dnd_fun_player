@@ -115,6 +115,14 @@ const TurnManager = ({
                 character.dnd_character_weapons.map((weapon) => {
                   const baseDamage = weapon.damage_dice || '1d6';
                   const damageBonus = weapon.damage_bonus || 0;
+                  
+                  // Calculate sneak attack damage if character is a rogue and hidden
+                  let bonusDamageText = '';
+                  if (isHidden && character?.character_class?.toLowerCase().includes('rogue')) {
+                    const sneakAttackDice = Math.ceil((character.level || 1) / 2);
+                    bonusDamageText = ` +${sneakAttackDice}d6`;
+                  }
+                  
                   return (
                     <ActionButton
                       key={weapon.name}
@@ -137,41 +145,62 @@ const TurnManager = ({
                       variant="danger"
                       loading={buttonStates[`attack-${weapon.name}`]}
                       icon={<Sword />}
-                      title={isHidden ? `${weapon.name} (Sneak Attack)` : weapon.name}
-                      subtitle={`${baseDamage}${damageBonus > 0 ? `+${damageBonus}` : ''} ${weapon.damage_type || 'dmg'}`}
+                      title={isHidden && character?.character_class?.toLowerCase().includes('rogue') ? `${weapon.name} (Sneak)` : weapon.name}
+                      subtitle={`${baseDamage}${damageBonus > 0 ? `+${damageBonus}` : ''}${bonusDamageText} ${weapon.damage_type || 'dmg'}`}
                     />
                   );
                 })
               }
               
               {/* Ability-granted actions */}
-              {actionAbilities.map(ability => (
-                <ActionButton
-                  key={ability.id}
-                  onClick={() => {
-                    // Determine spell type based on ability data
-                    const isAttackSpell = ability.description?.toLowerCase().includes('attack') || 
-                                         ability.name?.toLowerCase().includes('blast');
-                    const isSaveSpell = ability.description?.toLowerCase().includes('save') ||
-                                       ability.name?.toLowerCase().includes('spray');
-                    
-                    const abilityAction = {
-                      id: ability.id,
-                      name: ability.name,
-                      type: isSaveSpell ? 'spell_save' : (isAttackSpell ? 'spell_attack' : 'ability'),
-                      description: ability.description,
-                      diceType: 'd20',
-                      ability_data: ability.ability_data || {}
-                    };
-                    onActionSelect(abilityAction);
-                  }}
-                  disabled={turnState.actionUsed}
-                  variant="primary"
-                  icon={<span>{ability.icon}</span>}
-                  title={ability.name}
-                  subtitle={ability.current_uses < 999 ? `${ability.current_uses}/${ability.max_uses}` : 'Cantrip'}
-                />
-              ))}
+              {actionAbilities.map(ability => {
+                // Get damage information from ability data
+                const damage = ability.damage_dice || ability.ability_data?.damage;
+                const damageType = ability.damage_type || ability.ability_data?.damage_type;
+                
+                // Determine subtitle based on damage and uses
+                let subtitle = '';
+                if (ability.current_uses < 999) {
+                  subtitle = `${ability.current_uses}/${ability.max_uses}`;
+                  if (damage) {
+                    subtitle += ` • ${damage}`;
+                  }
+                } else if (damage) {
+                  subtitle = `${damage}${damageType ? ` ${damageType}` : ''}`;
+                } else {
+                  subtitle = 'Cantrip';
+                }
+                
+                return (
+                  <ActionButton
+                    key={ability.id}
+                    onClick={() => {
+                      // Determine spell type based on ability data
+                      const isAttackSpell = ability.description?.toLowerCase().includes('attack') || 
+                                           ability.name?.toLowerCase().includes('blast');
+                      const isSaveSpell = ability.description?.toLowerCase().includes('save') ||
+                                         ability.name?.toLowerCase().includes('spray');
+                      
+                      const abilityAction = {
+                        id: ability.id,
+                        name: ability.name,
+                        type: isSaveSpell ? 'spell_save' : (isAttackSpell ? 'spell_attack' : 'ability'),
+                        description: ability.description,
+                        diceType: 'd20',
+                        ability_data: ability.ability_data || {},
+                        damage: damage,
+                        damageType: damageType
+                      };
+                      onActionSelect(abilityAction);
+                    }}
+                    disabled={turnState.actionUsed}
+                    variant="primary"
+                    icon={<span>{ability.icon}</span>}
+                    title={ability.name}
+                    subtitle={subtitle}
+                  />
+                );
+              })}
               
               {/* No attacks message */}
               {(!character?.dnd_character_weapons?.length && !actionAbilities.length) && (
@@ -258,23 +287,44 @@ const TurnManager = ({
               <div className="mt-3">
                 <div className="text-xs text-gray-400 uppercase mb-2">Special Abilities</div>
                 <div className="grid grid-cols-4 gap-3">
-                  {bonusActionAbilities.map(ability => (
-                    <ActionButton
-                      key={ability.id}
-                      onClick={() => onActionSelect({
-                        id: ability.id,
-                        name: ability.name,
-                        type: 'ability',
-                        description: ability.description,
-                        uses: `${ability.current_uses}/${ability.max_uses}`
-                      })}
-                      disabled={turnState.bonusActionUsed || ability.current_uses === 0}
-                      variant="teal"
-                      icon={<span>{ability.icon}</span>}
-                      title={ability.name}
-                      subtitle={`${ability.current_uses}/${ability.max_uses}`}
-                    />
-                  ))}
+                  {bonusActionAbilities.map(ability => {
+                    // Get damage information from ability data
+                    const damage = ability.damage_dice || ability.ability_data?.damage;
+                    const damageType = ability.damage_type || ability.ability_data?.damage_type;
+                    
+                    // Determine subtitle based on damage and uses
+                    let subtitle = '';
+                    if (ability.current_uses < 999) {
+                      subtitle = `${ability.current_uses}/${ability.max_uses}`;
+                      if (damage) {
+                        subtitle += ` • ${damage}`;
+                      }
+                    } else if (damage) {
+                      subtitle = `${damage}${damageType ? ` ${damageType}` : ''}`;
+                    } else {
+                      subtitle = ability.current_uses < 999 ? `${ability.current_uses}/${ability.max_uses}` : '';
+                    }
+                    
+                    return (
+                      <ActionButton
+                        key={ability.id}
+                        onClick={() => onActionSelect({
+                          id: ability.id,
+                          name: ability.name,
+                          type: 'ability',
+                          description: ability.description,
+                          uses: `${ability.current_uses}/${ability.max_uses}`,
+                          damage: damage,
+                          damageType: damageType
+                        })}
+                        disabled={turnState.bonusActionUsed || ability.current_uses === 0}
+                        variant="teal"
+                        icon={<span>{ability.icon}</span>}
+                        title={ability.name}
+                        subtitle={subtitle}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}

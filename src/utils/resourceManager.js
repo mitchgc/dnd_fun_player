@@ -147,7 +147,10 @@ export const getActionGrantingAbilities = (abilities, resources) => {
       current_uses: abilityWithResource.current_uses,
       max_uses: abilityWithResource.max_uses,
       effect: ability.ability_data.effect,
-      icon: ability.ability_data.icon || '✨'
+      icon: ability.ability_data.icon || '✨',
+      damage_dice: ability.ability_data?.damage_dice || ability.ability_data?.damage,
+      damage_type: ability.ability_data?.damage_type,
+      ability_data: ability.ability_data || {}
     });
   }
   

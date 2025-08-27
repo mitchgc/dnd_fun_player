@@ -8,9 +8,12 @@ export function useAuth() {
   const [isLocalMode, setIsLocalMode] = useState(false);
 
   useEffect(() => {
+    // Check for local mode flag
+    const useLocalModeFlag = localStorage.getItem('useLocalMode') === 'true';
+    
     // Check if Supabase is configured
-    if (!isSupabaseConfigured) {
-      console.warn('Supabase not configured. Switching to local mode.');
+    if (!isSupabaseConfigured || useLocalModeFlag) {
+      console.warn(useLocalModeFlag ? 'Local mode requested by user.' : 'Supabase not configured. Switching to local mode.');
       // Create a local user for local mode
       const localUser = {
         id: `local-user-${Date.now()}`,

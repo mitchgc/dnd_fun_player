@@ -1,6 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Target, Sword, Heart, Eye, Sparkles } from 'lucide-react';
+import UnifiedRollDisplay from './UnifiedRollDisplay';
+import { createUnifiedRoll } from '../../utils/rollDataTransforms';
 
 const RollResult = ({
   result,
@@ -10,65 +12,66 @@ const RollResult = ({
   onClose,
   onReroll
 }) => {
-  const renderAttackResult = () => (
-    <div className="space-y-3">
-      {/* Attack Roll Section - Simple with Hover Details */}
-      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600 group cursor-help relative">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Target className="text-green-400" size={16} />
-            <span className="text-white font-medium">Attack Roll</span>
-          </div>
-          <span className="text-2xl font-bold text-green-400">{result.totalAttack}</span>
-        </div>
-        {/* Hover Details */}
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max pointer-events-none">
-          <div className="flex items-center space-x-2 mb-2">
-            <Target className="text-green-400" size={14} />
-            <span className="text-white text-sm font-medium">Attack Roll Breakdown</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="bg-gray-700 px-2 py-1 rounded text-sm font-mono text-white">{result.attackRoll}</span>
-            <span className="text-sm text-gray-400">+{selectedAction?.modifier || 0}</span>
-            <span className="text-sm text-gray-400">=</span>
-            <span className="text-sm font-bold text-white">{result.totalAttack}</span>
-          </div>
-        </div>
-      </div>
+  const renderAttackResult = () => {
+    // Create unified roll objects for attack and damage
+    const attackRoll = createUnifiedRoll(
+      'attack',
+      selectedAction?.name || 'Attack',
+      [{ 
+        sides: 20, 
+        value: result.attackRoll,
+        rolls: result.advantageRolls || [result.attackRoll]
+      }],
+      [{ 
+        label: 'Weapon Modifier', 
+        value: selectedAction?.modifier || 0 
+      }],
+      { 
+        advantage: !!result.advantageRolls && result.advantageRolls.length === 2,
+        disadvantage: !!result.disadvantageRolls && result.disadvantageRolls.length === 2
+      }
+    );
 
-      {/* Damage Section - Simple with Hover Details */}
-      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600 group cursor-help relative">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Sword className="text-red-400" size={16} />
-            <span className="text-white font-medium">Damage</span>
-          </div>
-          <span className="text-2xl font-bold text-red-400">{result.totalDamage}</span>
-        </div>
-        {/* Hover Details */}
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max pointer-events-none">
-          <div className="flex items-center space-x-2 mb-2">
-            <Sword className="text-red-400" size={14} />
-            <span className="text-white text-sm font-medium">Damage Breakdown</span>
-          </div>
-          <div className="flex items-center space-x-2 flex-wrap">
-            {result.weaponDiceSize && (
-              <span className="bg-gray-700 px-2 py-1 rounded text-sm font-mono text-white">{result.baseDamageRoll - 3}</span>
-            )}
-            <span className="text-sm text-gray-400">+3</span>
-            {result.sneakAttackTotal > 0 && (
-              <>
-                <span className="text-sm text-gray-400">+{result.sneakAttackTotal}</span>
-                <span className="text-sm text-purple-300">(Sneak)</span>
-              </>
-            )}
-            <span className="text-sm text-gray-400">=</span>
-            <span className="text-sm font-bold text-white">{result.totalDamage}</span>
-          </div>
-        </div>
+    // Build damage dice array
+    const damageDice = [];
+    if (result.weaponDiceSize) {
+      damageDice.push({
+        sides: result.weaponDiceSize,
+        value: result.baseDamageRoll - (selectedAction?.damageBonus || 0)
+      });
+    }
+    if (result.sneakAttackRolls && result.sneakAttackRolls.length > 0) {
+      result.sneakAttackRolls.forEach((roll, index) => {
+        damageDice.push({
+          sides: 6,
+          value: roll
+        });
+      });
+    }
+
+    // Build damage modifiers
+    const damageModifiers = [];
+    if (selectedAction?.damageBonus) {
+      damageModifiers.push({
+        label: 'Modifier',
+        value: selectedAction.damageBonus
+      });
+    }
+
+    const damageRoll = createUnifiedRoll(
+      'damage',
+      `${selectedAction?.weapon || 'Weapon'} Damage`,
+      damageDice,
+      damageModifiers
+    );
+
+    return (
+      <div className="space-y-3">
+        <UnifiedRollDisplay roll={attackRoll} />
+        <UnifiedRollDisplay roll={damageRoll} />
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderHealingResult = () => (
     <div className="space-y-3">
@@ -102,57 +105,44 @@ const RollResult = ({
     </div>
   );
 
-  const renderSpellSaveResult = () => (
-    <div className="space-y-3">
-      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600 group cursor-help relative">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Sparkles className="text-purple-400" size={16} />
-            <span className="text-white font-medium">Spell Damage</span>
-          </div>
-          <span className="text-2xl font-bold text-purple-400">{result.total}</span>
-        </div>
-        {/* Hover Details */}
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max pointer-events-none">
-          <div className="flex items-center space-x-2 mb-2">
-            <Sparkles className="text-purple-400" size={14} />
-            <span className="text-white text-sm font-medium">{selectedAction?.name || 'Spell'} Damage</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="bg-gray-700 px-2 py-1 rounded text-sm font-mono text-white">d12: {result.roll}</span>
-            <span className="text-sm text-gray-400">{result.damageType} damage</span>
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Save DC {result.spellDC} ({result.saveType})
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const renderSpellSaveResult = () => {
+    const spellRoll = createUnifiedRoll(
+      'spell_save',
+      selectedAction?.name || 'Spell',
+      [{ 
+        sides: 12, // Assuming d12 based on the hover details
+        value: result.roll 
+      }],
+      [] // No modifiers for spell damage typically
+    );
 
-  const renderStandardResult = () => (
-    <div className="text-lg text-gray-300 group cursor-help relative">
-      {selectedAction?.name || 'Roll'} = 
-      <span className={`text-3xl ml-2 ${
-        result.roll === 20 ? 'text-yellow-400' : 
-        result.roll === 1 ? 'text-red-400' : 
-        'text-green-400'
-      }`}>
-        {result.total}
-      </span>
-      <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 p-3 bg-gray-800 border border-gray-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 min-w-max">
-        <div className="flex items-center space-x-2">
-          <Eye className="text-green-400" size={14} />
-          <span className="text-white text-sm font-medium">{selectedAction?.name || 'Roll'}</span>
-        </div>
-        <div className="flex items-center space-x-1 mt-1">
-          <span className="bg-gray-700 px-2 py-0.5 rounded text-xs font-mono text-white">{result.roll}</span>
-          <span className="text-xs text-gray-400">+{result.modifier}</span>
-          <span className="text-xs font-bold text-white">= {result.total}</span>
-        </div>
-      </div>
-    </div>
-  );
+    return <UnifiedRollDisplay roll={spellRoll} />;
+  };
+
+  const renderStandardResult = () => {
+    // Determine roll type - could be skill check, save, or other d20 roll
+    const rollType = selectedAction?.type || 'skill';
+    
+    const standardRoll = createUnifiedRoll(
+      rollType,
+      selectedAction?.name || 'Roll',
+      [{ 
+        sides: 20, 
+        value: result.roll,
+        rolls: result.advantageRolls || result.disadvantageRolls || [result.roll]
+      }],
+      result.modifier ? [{ 
+        label: rollType === 'skill' ? 'Skill Modifier' : 'Modifier', 
+        value: result.modifier 
+      }] : [],
+      { 
+        advantage: !!result.advantageRolls && result.advantageRolls.length === 2,
+        disadvantage: !!result.disadvantageRolls && result.disadvantageRolls.length === 2
+      }
+    );
+
+    return <UnifiedRollDisplay roll={standardRoll} />;
+  };
 
   return (
     <div className="space-y-4 text-center">

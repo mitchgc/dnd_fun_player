@@ -576,7 +576,8 @@ const DnDCompanionApp = () => {
   };
 
   const handleLocalMode = () => {
-    // Local mode is already handled in useAuth - just reload to trigger local mode
+    // Set a flag in localStorage to trigger local mode on next load
+    localStorage.setItem('useLocalMode', 'true');
     window.location.reload();
   };
 
