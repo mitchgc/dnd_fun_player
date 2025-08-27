@@ -325,7 +325,7 @@ const ActionInfoPopup = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <span className="text-gray-400 text-sm font-medium">Action Info</span>
+          <span className="text-white text-base font-medium">{actionData?.name || 'Action'}</span>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors rounded-lg p-1 hover:bg-gray-700"
@@ -337,13 +337,6 @@ const ActionInfoPopup = ({
         {/* Content */}
         <div className="p-4">
           {renderContent()}
-        </div>
-
-        {/* Tip */}
-        <div className={`px-4 pb-4 text-xs opacity-75 ${
-          isHidden ? 'text-purple-300' : 'text-blue-300'
-        }`}>
-          💡 Long press actions for detailed info
         </div>
       </div>
     </>

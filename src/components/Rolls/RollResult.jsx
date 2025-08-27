@@ -158,34 +158,75 @@ const RollResult = ({
   };
 
   const renderSpellSaveResult = () => {
-    // Handle spells with no damage (like Suggestion)
+    // Handle spells with no damage (like Suggestion, Animal Friendship) - use unified display
     if (result.hasNoDamage) {
+      const saveTypeCapitalized = result.saveType?.charAt(0).toUpperCase() + result.saveType?.slice(1) || 'Wisdom';
+      
+      const saveRoll = {
+        type: 'save',
+        name: `${saveTypeCapitalized} Save`,
+        total: result.spellDC,
+        breakdown: [
+          { 
+            type: 'modifier', 
+            label: 'Target must roll vs', 
+            value: `DC ${result.spellDC}` 
+          }
+        ]
+      };
+      
+      return <UnifiedRollDisplay roll={saveRoll} />;
+    }
+
+    // Handle damage spells (like Poison Spray) - show both save and damage using unified display
+    if (result.hasDamage) {
+      const saveTypeCapitalized = result.saveType?.charAt(0).toUpperCase() + result.saveType?.slice(1) || 'Con';
+      
+      // Create save roll display - shows the DC the target needs to beat
+      const saveRoll = {
+        type: 'save',
+        name: `${saveTypeCapitalized} Save`,
+        total: result.spellDC,
+        breakdown: [
+          { 
+            type: 'modifier', 
+            label: 'Target must roll vs', 
+            value: `DC ${result.spellDC}` 
+          }
+        ]
+      };
+      
+      // Create damage roll display
+      const damageDice = result.rolls ? result.rolls.map((roll) => ({
+        sides: result.diceSize || 12,
+        value: roll
+      })) : [{ sides: result.diceSize || 12, value: result.total }];
+      
+      const damageModifiers = [];
+      if (result.bonus && result.bonus > 0) {
+        damageModifiers.push({
+          label: 'Bonus',
+          value: result.bonus
+        });
+      }
+      
+      const damageRoll = createUnifiedRoll(
+        'spell_save',
+        selectedAction?.name || 'Spell Damage',
+        damageDice,
+        damageModifiers
+      );
+      
       return (
-        <div className="text-center">
-          <div className="text-lg text-gray-300 mb-2">Spell Cast Successfully!</div>
-          <div className="text-sm text-gray-400 mb-2">
-            DC {result.spellDC} {result.saveType?.charAt(0).toUpperCase() + result.saveType?.slice(1)} Save
-          </div>
-          <div className="text-xs text-gray-500">Target makes the saving throw</div>
+        <div className="space-y-3">
+          <UnifiedRollDisplay roll={saveRoll} />
+          <UnifiedRollDisplay roll={damageRoll} />
         </div>
       );
     }
 
-    // Handle damage spells
-    // Use the actual dice size from the result data
-    let dice;
-    if (result.rolls && result.rolls.length > 0) {
-      // If we have individual rolls, use them with the correct dice size
-      const diceSize = result.diceSize || 12; // Use stored dice size or default to 12
-      dice = result.rolls.map((roll) => ({
-        sides: diceSize,
-        value: roll
-      }));
-    } else {
-      // Fallback for older format
-      dice = [{ sides: 12, value: result.roll || result.total }];
-    }
-
+    // Fallback for older format (shouldn't happen with current implementation)
+    const dice = [{ sides: 12, value: result.roll || result.total }];
     const spellRoll = createUnifiedRoll(
       'spell_save',
       selectedAction?.name || 'Spell',

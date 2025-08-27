@@ -196,8 +196,8 @@ const TurnManager = ({
                                            ability.name?.toLowerCase().includes('blast');
                       const isSaveSpell = ability.description?.toLowerCase().includes('save') ||
                                          ability.name?.toLowerCase().includes('spray') ||
-                                         ability.ability_data?.save_type ||  // Has a save type defined
-                                         ability.ability_data?.spell_dc;     // Has a spell DC defined
+                                         ability.ability_data?.saving_throw_stat ||  // Has a saving throw stat defined
+                                         ability.ability_data?.saving_throw_dc;      // Has a saving throw DC defined
                       
                       const abilityAction = {
                         id: ability.id,

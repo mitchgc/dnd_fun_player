@@ -528,8 +528,8 @@ const DnDCompanionApp = () => {
           // Check if this spell actually has damage
           const damageDice = action.damage || ability.damage_dice || ability.ability_data?.damage;
           const damageType = action.damageType || ability.damage_type || ability.ability_data?.damage_type;
-          const spellDC = ability.ability_data?.spell_dc || 10;
-          const saveType = ability.ability_data?.save_type || 'wisdom';
+          const spellDC = ability.ability_data?.saving_throw_dc || 10;
+          const saveType = ability.ability_data?.saving_throw_stat || 'wisdom';
           
           // If spell has no damage (like Suggestion, Animal Friendship), don't roll damage
           // Check for various ways a spell might indicate no damage
@@ -599,7 +599,8 @@ const DnDCompanionApp = () => {
               rolls: damageResult.rolls,
               bonus: damageResult.bonus,
               diceSize: damageResult.diceSize,
-              numDice: damageResult.numDice
+              numDice: damageResult.numDice,
+              hasDamage: true  // Flag to indicate this spell has damage
             };
             
             // Format dice string for logging
@@ -638,60 +639,6 @@ const DnDCompanionApp = () => {
         result = performHealingRoll(action, activeCharacter?.current_hp || 0, activeCharacter);
         if (result.healingAmount !== undefined) {
           applyHealing(result.healingAmount);
-        }
-      } else if (action.ability_data?.spell_dc || action.ability_data?.save_type) {
-        // Handle abilities that are actually spells but weren't classified as spell_save
-        // This catches spells like Animal Friendship that have spell DC data
-        const ability = activeCharacter.dnd_character_abilities?.find(a => a.id === action.id);
-        if (ability) {
-          const damageDice = action.damage || ability.damage_dice || ability.ability_data?.damage;
-          const damageType = action.damageType || ability.damage_type || ability.ability_data?.damage_type;
-          const spellDC = ability.ability_data?.spell_dc || action.ability_data?.spell_dc || 10;
-          const saveType = ability.ability_data?.save_type || action.ability_data?.save_type || 'wisdom';
-          
-          // Check if this is a non-damage spell
-          const hasNoDamage = !damageDice || 
-                             damageDice === '' || 
-                             damageDice === '0' ||
-                             damageDice === 'none' ||
-                             damageDice === 'None' ||
-                             !damageDice.match(/\d+d\d+/);
-          
-          if (hasNoDamage) {
-            result = {
-              type: 'spell_save',
-              name: ability.ability_name || action.name,
-              spellDC,
-              saveType,
-              hasNoDamage: true,
-              description: ability.description || action.description || `Target must make a DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} saving throw`
-            };
-            
-            // Log the spell save roll without damage
-            logRoll({
-              type: 'spell_save',
-              name: ability.ability_name || action.name,
-              dice: [],
-              details: {
-                spellDC,
-                saveType,
-                hasNoDamage: true,
-                description: `DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} save`
-              }
-            });
-            
-            useAction();
-            setLastAttackResult(result);
-            
-            if (isHidden) {
-              setHidden(false); // Casting spells breaks stealth
-            }
-          } else {
-            // Handle damage spells that weren't caught by the spell_save case
-            result = performStandardRoll(action);
-          }
-        } else {
-          result = performStandardRoll(action);
         }
       } else {
         result = performStandardRoll(action);
