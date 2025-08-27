@@ -44,6 +44,15 @@ const UnifiedRollDisplay = ({ roll, className = '', showCriticals = true }) => {
     if (die.criticalExtra) {
       return `d${die.sides} (Crit)`;
     }
+    if (die.isFullHeal) {
+      return `Full Heal`;
+    }
+    if (die.isCustom) {
+      return `Custom HP`;
+    }
+    if (die.sides === null) {
+      return `HP Restored`;
+    }
     return `d${die.sides}`;
   };
 

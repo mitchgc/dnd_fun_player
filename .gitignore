@@ -5,8 +5,8 @@
 
 # Testing
 /coverage
-.playright.mcp
-.claude
+.playwright-mcp/
+.claude/
 
 # Production
 /build

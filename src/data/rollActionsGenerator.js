@@ -229,55 +229,36 @@ const generateCombatActions = (character) => {
 const generateHealingActions = (character) => {
   const hitDiceCount = character.level || 1;
   const hitDie = character.hitDie || 'd8';
+  const conModifier = character.ability_scores ? getAbilityModifier(character.ability_scores.constitution || 10) : 0;
   
   return [
     {
       id: 'short-rest',
-      name: 'Short Rest Healing (1 hour)',
-      modifier: 0,
+      name: 'Short Rest Healing',
+      modifier: conModifier,
       type: 'healing',
       healType: 'short-rest',
-      dice: `${hitDiceCount}${hitDie}`,
-      description: 'Roll Hit Dice to recover HP',
-      diceType: hitDie.replace('d', 'd') // This will be d8, d10, etc.
+      dice: `${hitDie}+${conModifier}`,
+      description: 'Spend hit dice to recover HP during a short rest',
+      diceType: hitDie
     },
     {
       id: 'long-rest',
-      name: 'Long Rest Healing (8 hours)',
+      name: 'Long Rest Healing',
       modifier: 0,
       type: 'healing',
       healType: 'long-rest',
-      description: 'Recover all HP and reset abilities',
-      diceType: 'd20' // Placeholder for long rest
-    },
-    {
-      id: 'superior-potion',
-      name: 'Superior Healing Potion',
-      modifier: 0,
-      type: 'healing',
-      healType: 'potion',
-      dice: '8d4+8',
-      description: 'Roll 8d4+8 healing',
-      diceType: 'd4'
-    },
-    {
-      id: 'greater-potion',
-      name: 'Greater Healing Potion',
-      modifier: 0,
-      type: 'healing',
-      healType: 'potion',
-      dice: '4d4+4',
-      description: 'Roll 4d4+4 healing',
-      diceType: 'd4'
+      description: 'Recover all HP and abilities during a long rest',
+      diceType: 'full-heal'
     },
     {
       id: 'basic-potion',
       name: 'Basic Healing Potion',
-      modifier: 0,
+      modifier: 2,
       type: 'healing',
       healType: 'potion',
       dice: '2d4+2',
-      description: 'Roll 2d4+2 healing',
+      description: 'Roll 2d4+2 healing from a healing potion',
       diceType: 'd4'
     },
     {
@@ -286,7 +267,7 @@ const generateHealingActions = (character) => {
       modifier: 0,
       type: 'healing',
       healType: 'custom',
-      description: 'Enter custom healing amount'
+      description: 'Enter a custom healing amount'
     }
   ];
 };

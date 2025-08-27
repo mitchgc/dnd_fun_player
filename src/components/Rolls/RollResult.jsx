@@ -99,37 +99,63 @@ const RollResult = ({
     );
   };
 
-  const renderHealingResult = () => (
-    <div className="space-y-3">
-      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Heart className="text-green-400" size={16} />
-            <span className="text-white font-medium">Healing</span>
-          </div>
-          <span className="text-2xl font-bold text-green-400">
-            +{result.healingAmount || 'Full'}
-          </span>
-        </div>
-      </div>
-      
-      {result.description && (
-        <div className="text-sm text-gray-300 bg-gray-800 p-2 rounded">
-          {result.description}
-        </div>
-      )}
-      
-      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-        <div className="flex items-center justify-between">
-          <span className="text-white font-medium">New HP:</span>
-          <span className="text-2xl font-bold text-green-400">
-            {result.healType === 'long-rest' ? character.max_hp : 
-             `${Math.min(character.max_hp, result.finalHP || 0)}/${character.max_hp}`}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
+  const renderHealingResult = () => {
+    // Create unified roll for healing display
+    const healingDice = [];
+    const healingModifiers = [];
+    
+    // Handle different heal types with proper dice representation
+    if (result.healType === 'short-rest') {
+      if (result.hitDiceRoll) {
+        healingDice.push({
+          sides: 8, // Assuming d8 hit die, could be dynamic
+          value: result.hitDiceRoll
+        });
+      }
+      if (result.conModifier) {
+        healingModifiers.push({
+          label: 'CON Modifier',
+          value: result.conModifier
+        });
+      }
+    } else if (result.healType === 'potion') {
+      if (result.potionRolls) {
+        result.potionRolls.forEach(roll => {
+          healingDice.push({
+            sides: 4,
+            value: roll
+          });
+        });
+        healingModifiers.push({
+          label: 'Potion Bonus',
+          value: 2
+        });
+      }
+    } else if (result.healType === 'long-rest') {
+      // Long rest - no dice, just full heal
+      healingDice.push({
+        sides: null, // Special case for full heal
+        value: result.healingAmount || 0,
+        isFullHeal: true
+      });
+    } else if (result.healType === 'custom') {
+      // Custom healing - no dice, just the amount
+      healingDice.push({
+        sides: null,
+        value: result.healingAmount || 0,
+        isCustom: true
+      });
+    }
+
+    const healingRoll = createUnifiedRoll(
+      'healing',
+      selectedAction?.name || 'Healing',
+      healingDice,
+      healingModifiers
+    );
+
+    return <UnifiedRollDisplay roll={healingRoll} />;
+  };
 
   const renderSpellSaveResult = () => {
     const spellRoll = createUnifiedRoll(

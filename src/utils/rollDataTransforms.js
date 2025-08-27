@@ -202,6 +202,6 @@ export const createUnifiedRoll = (type, name, dice, modifiers, options = {}) => 
     name,
     total,
     breakdown,
-    timestamp: new Date().toLocaleTimeString()
+    timestamp: Date.now()
   };
 };

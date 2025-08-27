@@ -11,7 +11,8 @@ const ActionButton = ({
   subtitle,
   children, 
   className = '',
-  loading = false 
+  loading = false,
+  longPressHandlers = {}
 }) => {
   const baseClasses = "font-semibold transition-all duration-200 rounded-xl border p-4 touch-ripple min-h-[44px] min-w-[44px]";
   
@@ -51,11 +52,27 @@ const ActionButton = ({
     );
   };
 
+  // Merge onClick handlers to allow both long press and regular click
+  const handleClick = (event) => {
+    // If longPressHandlers has an onClick, call it first
+    if (longPressHandlers?.onClick) {
+      longPressHandlers.onClick(event);
+    }
+    // If the event wasn't prevented by long press, call the original onClick
+    if (!event.defaultPrevented && onClick) {
+      onClick(event);
+    }
+  };
+
+  // Extract onClick from longPressHandlers to handle it separately
+  const { onClick: longPressClick, ...otherLongPressHandlers } = longPressHandlers || {};
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled || loading}
       className={`${baseClasses} ${variantClasses[variant]} flex flex-col items-center justify-center ${className}`}
+      {...otherLongPressHandlers}
     >
       {renderContent()}
     </button>
@@ -71,7 +88,8 @@ ActionButton.propTypes = {
   subtitle: PropTypes.string,
   children: PropTypes.node,
   className: PropTypes.string,
-  loading: PropTypes.bool
+  loading: PropTypes.bool,
+  longPressHandlers: PropTypes.object
 };
 
 export default ActionButton;

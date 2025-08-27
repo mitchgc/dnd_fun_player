@@ -32,6 +32,15 @@ interface Character {
   dnd_character_abilities?: any[];
   dnd_character_resources?: any[];
   resources?: { [key: string]: number };
+  // Story-related fields
+  background?: string;
+  backstory?: string;
+  personality_traits?: string;
+  ideals?: string;
+  bonds?: string;
+  flaws?: string;
+  motives?: string;
+  profile_image?: string;
 }
 
 interface CharacterContextType {

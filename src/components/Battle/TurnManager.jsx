@@ -2,8 +2,10 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Sword, Sparkles, Eye, EyeOff, Package } from 'lucide-react';
 import ActionButton from './ActionButton';
+import ActionInfoPopup from './ActionInfoPopup';
 import { getWeaponStats } from '../../utils/diceUtils';
 import { getActionGrantingAbilities } from '../../utils/resourceManager';
+import { useActionInfo } from '../../hooks/useActionInfo';
 
 const TurnManager = ({
   character,
@@ -21,6 +23,14 @@ const TurnManager = ({
   onUseBonusAction,
   onActionSelect
 }) => {
+  // Action info popup state
+  const {
+    popupState,
+    hidePopup,
+    createWeaponLongPressHandlers,
+    createAbilityLongPressHandlers,
+    createActionLongPressHandlers
+  } = useActionInfo();
   const handleHideClick = () => {
     if (isHidden) {
       // If already hidden, just reveal without rolling
@@ -55,6 +65,7 @@ const TurnManager = ({
   );
 
   return (
+    <>
     <div className={`rounded-2xl shadow-xl border-2 ${
       isHidden 
         ? 'bg-gradient-to-r from-gray-800 to-purple-900 border-purple-600'
@@ -123,6 +134,8 @@ const TurnManager = ({
                     bonusDamageText = ` +${sneakAttackDice}d6`;
                   }
                   
+                  const longPressHandlers = createWeaponLongPressHandlers(weapon, character);
+                  
                   return (
                     <ActionButton
                       key={weapon.name}
@@ -147,6 +160,7 @@ const TurnManager = ({
                       icon={<Sword />}
                       title={isHidden && character?.character_class?.toLowerCase().includes('rogue') ? `${weapon.name} (Sneak)` : weapon.name}
                       subtitle={`${baseDamage}${damageBonus > 0 ? `+${damageBonus}` : ''}${bonusDamageText} ${weapon.damage_type || 'dmg'}`}
+                      longPressHandlers={longPressHandlers}
                     />
                   );
                 })
@@ -170,6 +184,8 @@ const TurnManager = ({
                 } else {
                   subtitle = 'Cantrip';
                 }
+                
+                const longPressHandlers = createAbilityLongPressHandlers(ability, character);
                 
                 return (
                   <ActionButton
@@ -198,6 +214,7 @@ const TurnManager = ({
                     icon={<span>{ability.icon}</span>}
                     title={ability.name}
                     subtitle={subtitle}
+                    longPressHandlers={longPressHandlers}
                   />
                 );
               })}
@@ -305,6 +322,8 @@ const TurnManager = ({
                       subtitle = ability.current_uses < 999 ? `${ability.current_uses}/${ability.max_uses}` : '';
                     }
                     
+                    const longPressHandlers = createAbilityLongPressHandlers(ability, character);
+                    
                     return (
                       <ActionButton
                         key={ability.id}
@@ -322,6 +341,7 @@ const TurnManager = ({
                         icon={<span>{ability.icon}</span>}
                         title={ability.name}
                         subtitle={subtitle}
+                        longPressHandlers={longPressHandlers}
                       />
                     );
                   })}
@@ -364,6 +384,17 @@ const TurnManager = ({
       </div>
     </div>
   </div>
+  
+  {/* Action Info Popup */}
+  <ActionInfoPopup
+    isVisible={popupState.isVisible}
+    position={popupState.position}
+    actionData={popupState.actionData}
+    character={character}
+    onClose={hidePopup}
+    isHidden={isHidden}
+  />
+  </>
   );
 };
 

@@ -5,6 +5,7 @@ import RollSearch from './RollSearch';
 import RollResult from './RollResult';
 import RollHistory from './RollHistory';
 import DamageInput from './DamageInput';
+import HealingInput from './HealingInput';
 import CompactDiceAnimation from './CompactDiceAnimation';
 
 const RollPopup = ({
@@ -22,23 +23,29 @@ const RollPopup = ({
   onActionSelect,
   onDamageInputChange,
   onApplyDamage,
+  onApplyHealing,
   onClearHistory,
   onPhaseChange
 }) => {
   if (!rollPopup.isOpen) return null;
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 flex p-4 transition-all duration-300 ${
-        isKeyboardOpen
-          ? 'items-start justify-center pt-8' // Center modal when keyboard is open
-          : 'items-end justify-end p-6' // Bottom-right when keyboard closed
-      }`}
-      onClick={onClose}
-      style={{ 
-        height: isKeyboardOpen ? `${viewportHeight}px` : '100vh' 
-      }}
-    >
+    <>
+      {/* Backdrop overlay */}
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] transition-all duration-300" />
+      
+      {/* Modal container */}
+      <div 
+        className={`fixed inset-0 z-50 flex p-4 transition-all duration-300 ${
+          isKeyboardOpen
+            ? 'items-start justify-center pt-8' // Center modal when keyboard is open
+            : 'items-end justify-end p-6' // Bottom-right when keyboard closed
+        }`}
+        onClick={onClose}
+        style={{ 
+          height: isKeyboardOpen ? `${viewportHeight}px` : '100vh' 
+        }}
+      >
       <div 
         className={`${
           isKeyboardOpen 
@@ -74,6 +81,16 @@ const RollPopup = ({
             onClose={onClose}
             onDamageInputChange={onDamageInputChange}
             onApplyDamage={onApplyDamage}
+          />
+        )}
+
+        {rollPopup.phase === 'healing-input' && (
+          <HealingInput
+            character={character}
+            currentHP={currentHP}
+            isKeyboardOpen={isKeyboardOpen}
+            onClose={onClose}
+            onApplyHealing={onApplyHealing}
           />
         )}
 
@@ -126,6 +143,7 @@ const RollPopup = ({
         )}
       </div>
     </div>
+    </>
   );
 };
 
@@ -133,7 +151,7 @@ RollPopup.propTypes = {
   rollActions: PropTypes.object.isRequired,
   rollPopup: PropTypes.shape({
     isOpen: PropTypes.bool.isRequired,
-    phase: PropTypes.oneOf(['search', 'rolling', 'result', 'logs', 'damage-input']).isRequired,
+    phase: PropTypes.oneOf(['search', 'rolling', 'result', 'logs', 'damage-input', 'healing-input']).isRequired,
     searchTerm: PropTypes.string,
     selectedAction: PropTypes.object,
     result: PropTypes.object
@@ -150,6 +168,7 @@ RollPopup.propTypes = {
   onActionSelect: PropTypes.func.isRequired,
   onDamageInputChange: PropTypes.func,
   onApplyDamage: PropTypes.func,
+  onApplyHealing: PropTypes.func,
   onClearHistory: PropTypes.func.isRequired,
   onPhaseChange: PropTypes.func.isRequired
 };

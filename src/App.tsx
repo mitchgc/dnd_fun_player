@@ -10,6 +10,8 @@ import AuthScreen from './components/Auth/AuthScreen';
 
 import CollaborativeJournal from './components/Journal/CollaborativeJournal';
 import MobileNav from './components/Navigation/MobileNav';
+import ProfilePictureUpload from './components/Story/ProfilePictureUpload';
+import EditableField from './components/Story/EditableField';
 
 // Import Character Context
 import { CharacterProvider, useCharacter } from './contexts/CharacterContext';
@@ -243,21 +245,38 @@ const DnDCompanionApp = () => {
       {
         id: 'short-rest',
         name: 'Short Rest Healing',
-        modifier: 0,
+        modifier: calcModifier(activeCharacter.ability_scores?.constitution || 10),
         type: 'healing',
         healType: 'short-rest',
-        description: 'Roll Hit Dice to recover HP',
+        description: 'Spend hit dice to recover HP during a short rest',
         diceType: 'd8'
+      },
+      {
+        id: 'long-rest',
+        name: 'Long Rest Healing',
+        modifier: 0,
+        type: 'healing',
+        healType: 'long-rest',
+        description: 'Recover all HP and abilities during a long rest',
+        diceType: 'full-heal'
       },
       {
         id: 'basic-potion',
         name: 'Basic Healing Potion',
-        modifier: 0,
+        modifier: 2,
         type: 'healing',
         healType: 'potion',
         dice: '2d4+2',
-        description: 'Roll 2d4+2 healing',
+        description: 'Roll 2d4+2 healing from a healing potion',
         diceType: 'd4'
+      },
+      {
+        id: 'custom-healing',
+        name: 'Custom Healing',
+        modifier: 0,
+        type: 'healing',
+        healType: 'custom',
+        description: 'Enter a custom healing amount'
       }
     ];
     
@@ -411,6 +430,64 @@ const DnDCompanionApp = () => {
       return;
     }
     
+    // Handle healing actions that shouldn't roll
+    if (action.type === 'healing') {
+      if (action.healType === 'custom') {
+        // Show custom healing input dialog
+        setRollPopup({
+          isOpen: true,
+          searchTerm: '',
+          selectedAction: action,
+          phase: 'healing-input',
+          result: null
+        });
+        return;
+      } else if (action.healType === 'long-rest') {
+        // Long rest - no rolling, just heal to full
+        const maxHP = activeCharacter?.max_hp || 100;
+        const currentHP = activeCharacter?.current_hp || 0;
+        const healAmount = maxHP - currentHP;
+        
+        applyHealing(healAmount);
+        
+        const result = {
+          type: 'healing',
+          name: action.name,
+          healingAmount: healAmount,
+          healType: 'long-rest',
+          description: 'Fully restored HP and reset all abilities',
+          finalHP: maxHP,
+          total: healAmount
+        };
+        
+        // Log the long rest healing
+        logRoll({
+          type: 'healing',
+          name: action.name,
+          dice: [{
+            name: 'Long Rest',
+            dice: [`Full HP restored`],
+            bonus: 0,
+            total: healAmount
+          }],
+          details: {
+            healType: 'long-rest',
+            finalHP: maxHP
+          }
+        });
+        
+        // Skip rolling animation and go straight to result
+        setRollPopup({
+          isOpen: true,
+          searchTerm: '',
+          selectedAction: action,
+          phase: 'result',
+          result
+        });
+        return;
+      }
+    }
+    
     setRollPopup(prev => ({
       ...prev,
       isOpen: true,
@@ -445,41 +522,99 @@ const DnDCompanionApp = () => {
           }
         }
       } else if (action.type === 'spell_save') {
-        // Handle save-based spells like Poison Spray
+        // Handle save-based spells
         const ability = activeCharacter.dnd_character_abilities?.find(a => a.id === action.id);
         if (ability) {
-          // For save-based spells, we roll damage directly since the target makes the save
-          const damageRoll = rollDice(12); // d12 for Poison Spray
+          // Check if this spell actually has damage
+          const damageDice = action.damage || ability.damage_dice || ability.ability_data?.damage;
+          const damageType = action.damageType || ability.damage_type || ability.ability_data?.damage_type;
           const spellDC = ability.ability_data?.spell_dc || 10;
+          const saveType = ability.ability_data?.save_type || 'wisdom';
           
-          result = {
-            type: 'spell_save',
-            name: ability.ability_name,
-            damageRoll,
-            damage: damageRoll,
-            total: damageRoll, // Add total field for RollResult component
-            roll: damageRoll, // Add roll field for consistency
-            spellDC,
-            saveType: ability.ability_data?.save_type || 'constitution',
-            damageType: ability.ability_data?.damage_type || 'poison'
-          };
-          
-          // Log the spell save roll
-          logRoll({
-            type: 'spell_save',
-            name: ability.ability_name,
-            dice: [{
-              name: 'Damage Roll',
-              dice: [`d12: ${damageRoll}`],
-              bonus: 0,
-              total: damageRoll
-            }],
-            details: {
+          // If spell has no damage (like Suggestion), don't roll damage
+          if (!damageDice || damageDice === '' || damageDice === '0') {
+            result = {
+              type: 'spell_save',
+              name: ability.ability_name,
               spellDC,
-              saveType: ability.ability_data?.save_type || 'constitution',
-              damageType: ability.ability_data?.damage_type || 'poison'
-            }
-          });
+              saveType,
+              hasNoDamage: true,
+              description: ability.description || `Target must make a DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} saving throw`
+            };
+            
+            // Log the spell save roll without damage
+            logRoll({
+              type: 'spell_save',
+              name: ability.ability_name,
+              dice: [],
+              details: {
+                spellDC,
+                saveType,
+                hasNoDamage: true,
+                description: `DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} save`
+              }
+            });
+          } else {
+            // Parse damage dice string for spells with damage (e.g., "1d12", "2d6", "3d4+2")
+            const parseDamageRoll = (diceString) => {
+              const match = diceString.match(/(\d+)d(\d+)(?:\+(\d+))?/);
+              if (!match) return { total: 0, rolls: [], bonus: 0 };
+              
+              const numDice = parseInt(match[1]);
+              const diceSize = parseInt(match[2]);
+              const bonus = parseInt(match[3] || 0);
+              
+              const rolls = [];
+              let total = bonus;
+              
+              for (let i = 0; i < numDice; i++) {
+                const roll = rollDice(diceSize);
+                rolls.push(roll);
+                total += roll;
+              }
+              
+              return { total, rolls, bonus, diceSize, numDice };
+            };
+            
+            const damageResult = parseDamageRoll(damageDice);
+            
+            result = {
+              type: 'spell_save',
+              name: ability.ability_name,
+              damageRoll: damageResult.total,
+              damage: damageResult.total,
+              total: damageResult.total,
+              roll: damageResult.total,
+              spellDC,
+              saveType,
+              damageType: damageType,
+              rolls: damageResult.rolls,
+              bonus: damageResult.bonus
+            };
+            
+            // Format dice string for logging
+            const diceStrings = damageResult.rolls.map((roll, i) => 
+              `d${damageResult.diceSize}: ${roll}`
+            );
+            
+            // Log the spell save roll with damage
+            logRoll({
+              type: 'spell_save',
+              name: ability.ability_name,
+              dice: [{
+                name: 'Damage Roll',
+                dice: diceStrings,
+                bonus: damageResult.bonus,
+                total: damageResult.total
+              }],
+              details: {
+                spellDC,
+                saveType,
+                damageType: damageType,
+                damageDice: damageDice
+              }
+            });
+          }
           
           useAction();
           setLastAttackResult(result);
@@ -489,6 +624,7 @@ const DnDCompanionApp = () => {
           }
         }
       } else if (action.type === 'healing') {
+        // Only short rest and basic potion reach here (custom and long-rest handled earlier)
         result = performHealingRoll(action, activeCharacter?.current_hp || 0, activeCharacter);
         if (result.healingAmount !== undefined) {
           applyHealing(result.healingAmount);
@@ -558,6 +694,30 @@ const DnDCompanionApp = () => {
       closeRollPopup();
     }
   }, [applyDamage, logRoll, closeRollPopup]);
+
+  const handleApplyHealing = useCallback((healingAmount) => {
+    if (healingAmount && healingAmount > 0) {
+      applyHealing(healingAmount);
+      
+      // Log the custom healing
+      logRoll({
+        type: 'healing',
+        name: 'Custom Healing',
+        dice: [{
+          name: 'Custom Heal',
+          dice: [`${healingAmount} HP`],
+          bonus: 0,
+          total: healingAmount
+        }],
+        details: {
+          healType: 'custom',
+          finalHP: Math.min(activeCharacter?.max_hp || 100, (activeCharacter?.current_hp || 0) + healingAmount)
+        }
+      });
+      
+      closeRollPopup();
+    }
+  }, [applyHealing, logRoll, closeRollPopup, activeCharacter]);
 
   // Panel handlers
   const handleDefensiveCollapsedToggle = useCallback(() => {
@@ -960,17 +1120,204 @@ const DnDCompanionApp = () => {
     );
   };
 
-  const StoryPage = () => (
-    <div className="p-4 md:p-6">
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-green-600">
-        <h2 className="text-3xl font-bold text-white mb-6 flex items-center">
-          <User className="mr-3 text-green-400" size={32} />
-          Character Story
-        </h2>
-        <p className="text-gray-300">Story page content - to be implemented</p>
+  const StoryPage = () => {
+    const { activeCharacter, isLoading, error } = useCharacter();
+    
+    if (isLoading) {
+      return (
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-green-600">
+            <div className="animate-pulse text-white text-center">
+              Loading character story...
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-gradient-to-r from-red-900 to-red-800 rounded-2xl shadow-xl p-6 border-2 border-red-600">
+            <div className="text-white text-center">
+              Error loading character: {error}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (!activeCharacter) {
+      return (
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-gray-600">
+            <div className="text-white text-center">
+              No character selected
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="p-4 md:p-6 space-y-6">
+        <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-green-600">
+          <h2 className="text-3xl font-bold text-white mb-6 flex items-center">
+            <User className="mr-3 text-green-400" size={32} />
+            Character Story
+          </h2>
+          
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Profile Picture Section */}
+            <div className="md:col-span-1">
+              <div className="bg-gray-800 rounded-xl p-6 border-2 border-green-500">
+                <div className="flex flex-col items-center text-center">
+                  <ProfilePictureUpload
+                    currentImage={activeCharacter.profile_image}
+                    onImageChange={async (imageUrl) => {
+                      await updateCharacterState(activeCharacter.id, { profile_image: imageUrl });
+                    }}
+                    characterName={activeCharacter.name}
+                  />
+                  <h3 className="text-2xl font-bold text-white mb-2 mt-4">{activeCharacter.name}</h3>
+                  <p className="text-green-400 font-medium">{activeCharacter.race} {activeCharacter.character_class}</p>
+                  <p className="text-gray-300">Level {activeCharacter.level}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Character Details Section */}
+            <div className="md:col-span-2 space-y-6">
+              {/* Basic Information */}
+              <div className="bg-gray-800 rounded-xl p-6 border-2 border-blue-500">
+                <h4 className="text-xl font-bold text-blue-400 mb-4 flex items-center">
+                  <BookOpen className="mr-2" size={20} />
+                  Character Basics
+                </h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-gray-400 text-sm font-semibold mb-1">Race</p>
+                    <p className="text-white text-lg">{activeCharacter.race}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-sm font-semibold mb-1">Class</p>
+                    <p className="text-white text-lg">{activeCharacter.character_class}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-sm font-semibold mb-1">Level</p>
+                    <p className="text-white text-lg">{activeCharacter.level}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-sm font-semibold mb-1">Background</p>
+                    <EditableField
+                      value={activeCharacter.background}
+                      onSave={async (value) => {
+                        await updateCharacterState(activeCharacter.id, { background: value });
+                      }}
+                      placeholder="Choose a background (e.g., Acolyte, Criminal, Folk Hero)"
+                      className="text-white text-lg -m-3 -mb-1"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Backstory Section */}
+              <div className="bg-gray-800 rounded-xl p-6 border-2 border-purple-500">
+                <h4 className="text-xl font-bold text-purple-400 mb-4 flex items-center">
+                  <BookOpen className="mr-2" size={20} />
+                  Backstory
+                </h4>
+                <EditableField
+                  value={activeCharacter.backstory}
+                  onSave={async (value) => {
+                    await updateCharacterState(activeCharacter.id, { backstory: value });
+                  }}
+                  placeholder="Tell the story of your character's past. Where did they come from? What shaped them into who they are today?"
+                  multiline={true}
+                  className="text-gray-300 leading-relaxed"
+                />
+              </div>
+              
+              {/* Motives & Goals Section */}
+              <div className="bg-gray-800 rounded-xl p-6 border-2 border-yellow-500">
+                <h4 className="text-xl font-bold text-yellow-400 mb-4 flex items-center">
+                  <Sparkles className="mr-2" size={20} />
+                  Motives & Goals
+                </h4>
+                <EditableField
+                  value={activeCharacter.motives}
+                  onSave={async (value) => {
+                    await updateCharacterState(activeCharacter.id, { motives: value });
+                  }}
+                  placeholder="What drives this character? What are their goals and aspirations? What do they hope to achieve?"
+                  multiline={true}
+                  className="text-gray-300 leading-relaxed"
+                />
+              </div>
+              
+              {/* Personality Traits */}
+              <div className="bg-gray-800 rounded-xl p-6 border-2 border-pink-500">
+                <h4 className="text-xl font-bold text-pink-400 mb-4 flex items-center">
+                  <User className="mr-2" size={20} />
+                  Personality
+                </h4>
+                <div className="grid md:grid-cols-2 gap-4 text-gray-300">
+                  <div>
+                    <p className="text-pink-300 font-semibold mb-2">Personality Traits</p>
+                    <EditableField
+                      value={activeCharacter.personality_traits}
+                      onSave={async (value) => {
+                        await updateCharacterState(activeCharacter.id, { personality_traits: value });
+                      }}
+                      placeholder="How does your character act? What are their mannerisms and quirks?"
+                      multiline={true}
+                      className="text-sm leading-relaxed"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-pink-300 font-semibold mb-2">Ideals</p>
+                    <EditableField
+                      value={activeCharacter.ideals}
+                      onSave={async (value) => {
+                        await updateCharacterState(activeCharacter.id, { ideals: value });
+                      }}
+                      placeholder="What principles drive your character? What do they believe in?"
+                      multiline={true}
+                      className="text-sm leading-relaxed"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-pink-300 font-semibold mb-2">Bonds</p>
+                    <EditableField
+                      value={activeCharacter.bonds}
+                      onSave={async (value) => {
+                        await updateCharacterState(activeCharacter.id, { bonds: value });
+                      }}
+                      placeholder="Who or what is important to your character? What connections do they have?"
+                      multiline={true}
+                      className="text-sm leading-relaxed"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-pink-300 font-semibold mb-2">Flaws</p>
+                    <EditableField
+                      value={activeCharacter.flaws}
+                      onSave={async (value) => {
+                        await updateCharacterState(activeCharacter.id, { flaws: value });
+                      }}
+                      placeholder="What are your character's weaknesses or vices? What gets them in trouble?"
+                      multiline={true}
+                      className="text-sm leading-relaxed"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className={`min-h-screen transition-all duration-1000 ${
@@ -1151,6 +1498,7 @@ const DnDCompanionApp = () => {
         onActionSelect={handleActionSelect}
         onDamageInputChange={handleDamageInputChange}
         onApplyDamage={handleApplyDamage}
+        onApplyHealing={handleApplyHealing}
         onClearHistory={clearLogs}
         onPhaseChange={handlePhaseChange}
       />

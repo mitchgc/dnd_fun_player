@@ -7,7 +7,7 @@ export const useDiceRolls = () => {
 
   // Log roll function
   const logRoll = useCallback((logEntry) => {
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = Date.now(); // Use Unix timestamp for consistency
     const entry = { ...logEntry, timestamp, id: Date.now() };
     setRollLogs(prev => [entry, ...prev]); // Add to beginning for newest first
   }, []);
@@ -210,8 +210,29 @@ export const useDiceRolls = () => {
       if (hits_target) {
         hits++;
         
-        // Roll base damage
-        const damageRoll = rollDice(10); // d10 for Eldritch Blast
+        // Roll base damage using actual dice from ability data
+        const parseDamageRoll = (diceString) => {
+          const match = diceString.match(/(\d+)d(\d+)(?:\+(\d+))?/);
+          if (!match) return { total: 0, rolls: [], bonus: 0, diceSize: 6 };
+          
+          const numDice = parseInt(match[1]);
+          const diceSize = parseInt(match[2]);
+          const bonus = parseInt(match[3] || 0);
+          
+          const rolls = [];
+          let total = bonus;
+          
+          for (let i = 0; i < numDice; i++) {
+            const roll = rollDice(diceSize);
+            rolls.push(roll);
+            total += roll;
+          }
+          
+          return { total, rolls, bonus, diceSize, numDice };
+        };
+        
+        const damageResult = parseDamageRoll(baseDamage);
+        const damageRoll = damageResult.total;
         let beamDamage = damageRoll;
         
         // Apply passive damage bonuses
@@ -225,7 +246,10 @@ export const useDiceRolls = () => {
           roll: damageRoll, 
           bonus: beamDamage - damageRoll,
           total: beamDamage,
-          bonuses: bonusDescription
+          bonuses: bonusDescription,
+          rolls: damageResult.rolls,
+          diceSize: damageResult.diceSize,
+          baseDice: baseDamage
         });
         totalDamage += beamDamage;
       }
@@ -294,44 +318,33 @@ export const useDiceRolls = () => {
         finalHP: character.max_hp
       };
     } else if (action.healType === 'short-rest') {
-      // Short rest - roll hit dice (3d8 for level 5 rogue)
-      let hitDiceRolls = [];
-      for (let i = 0; i < 3; i++) {
-        const roll = rollDice(8);
-        hitDiceRolls.push(roll);
-        healingAmount += roll;
-      }
+      // Short rest - roll hit dice based on character
+      const hitDie = character.hitDie || 'd8';
+      const hitDieSize = parseInt(hitDie.replace('d', ''));
+      const conModifier = character.ability_scores ? Math.floor(((character.ability_scores.constitution || 10) - 10) / 2) : 0;
+      
+      const roll = rollDice(hitDieSize);
+      healingAmount = roll + conModifier;
       
       result = {
         type: 'healing',
         name: action.name,
         healingAmount,
         healType: 'short-rest',
-        hitDiceRolls,
-        description: `Rolled ${hitDiceRolls.join(', ')} on 3d8`,
+        hitDiceRoll: roll,
+        conModifier,
+        description: `Rolled ${roll} on ${hitDie} + ${conModifier} CON`,
         finalHP: Math.min(character.max_hp, currentHP + healingAmount)
       };
     } else if (action.healType === 'potion') {
-      // Roll potion dice
+      // Basic healing potion - 2d4+2
       let potionRolls = [];
-      
-      if (action.id === 'superior-potion') {
-        // 8d4+8
-        for (let i = 0; i < 8; i++) {
-          const roll = rollDice(4);
-          potionRolls.push(roll);
-          healingAmount += roll;
-        }
-        healingAmount += 8; // +8 bonus
-      } else if (action.id === 'basic-potion') {
-        // 2d4+2
-        for (let i = 0; i < 2; i++) {
-          const roll = rollDice(4);
-          potionRolls.push(roll);
-          healingAmount += roll;
-        }
-        healingAmount += 2; // +2 bonus
+      for (let i = 0; i < 2; i++) {
+        const roll = rollDice(4);
+        potionRolls.push(roll);
+        healingAmount += roll;
       }
+      healingAmount += 2; // +2 bonus
       
       result = {
         type: 'healing',
@@ -339,7 +352,7 @@ export const useDiceRolls = () => {
         healingAmount,
         healType: 'potion',
         potionRolls,
-        description: `Rolled ${potionRolls.join(', ')} ${action.id === 'superior-potion' ? '+8' : '+2'}`,
+        description: `Rolled ${potionRolls.join(', ')} +2 (Basic Healing Potion)`,
         finalHP: Math.min(character.max_hp, currentHP + healingAmount)
       };
     } else if (action.healType === 'custom') {
@@ -360,10 +373,10 @@ export const useDiceRolls = () => {
         name: action.name,
         dice: [{
           name: 'Healing',
-          dice: result.hitDiceRolls ? result.hitDiceRolls.map((r, i) => `d8: ${r}`) : 
+          dice: result.hitDiceRoll ? [`${character.hitDie || 'd8'}: ${result.hitDiceRoll}`] :
                 result.potionRolls ? result.potionRolls.map((r, i) => `d4: ${r}`) : 
                 ['Full Rest'],
-          bonus: action.id === 'superior-potion' ? 8 : action.id === 'basic-potion' ? 2 : 0,
+          bonus: result.conModifier || (action.healType === 'potion' ? 2 : 0),
           total: healingAmount
         }],
         details: {
