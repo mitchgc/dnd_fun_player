@@ -531,8 +531,16 @@ const DnDCompanionApp = () => {
           const spellDC = ability.ability_data?.spell_dc || 10;
           const saveType = ability.ability_data?.save_type || 'wisdom';
           
-          // If spell has no damage (like Suggestion), don't roll damage
-          if (!damageDice || damageDice === '' || damageDice === '0') {
+          // If spell has no damage (like Suggestion, Animal Friendship), don't roll damage
+          // Check for various ways a spell might indicate no damage
+          const hasNoDamage = !damageDice || 
+                             damageDice === '' || 
+                             damageDice === '0' ||
+                             damageDice === 'none' ||
+                             damageDice === 'None' ||
+                             !damageDice.match(/\d+d\d+/); // Must have dice pattern to be considered damage
+          
+          if (hasNoDamage) {
             result = {
               type: 'spell_save',
               name: ability.ability_name,
@@ -589,7 +597,9 @@ const DnDCompanionApp = () => {
               saveType,
               damageType: damageType,
               rolls: damageResult.rolls,
-              bonus: damageResult.bonus
+              bonus: damageResult.bonus,
+              diceSize: damageResult.diceSize,
+              numDice: damageResult.numDice
             };
             
             // Format dice string for logging
@@ -628,6 +638,60 @@ const DnDCompanionApp = () => {
         result = performHealingRoll(action, activeCharacter?.current_hp || 0, activeCharacter);
         if (result.healingAmount !== undefined) {
           applyHealing(result.healingAmount);
+        }
+      } else if (action.ability_data?.spell_dc || action.ability_data?.save_type) {
+        // Handle abilities that are actually spells but weren't classified as spell_save
+        // This catches spells like Animal Friendship that have spell DC data
+        const ability = activeCharacter.dnd_character_abilities?.find(a => a.id === action.id);
+        if (ability) {
+          const damageDice = action.damage || ability.damage_dice || ability.ability_data?.damage;
+          const damageType = action.damageType || ability.damage_type || ability.ability_data?.damage_type;
+          const spellDC = ability.ability_data?.spell_dc || action.ability_data?.spell_dc || 10;
+          const saveType = ability.ability_data?.save_type || action.ability_data?.save_type || 'wisdom';
+          
+          // Check if this is a non-damage spell
+          const hasNoDamage = !damageDice || 
+                             damageDice === '' || 
+                             damageDice === '0' ||
+                             damageDice === 'none' ||
+                             damageDice === 'None' ||
+                             !damageDice.match(/\d+d\d+/);
+          
+          if (hasNoDamage) {
+            result = {
+              type: 'spell_save',
+              name: ability.ability_name || action.name,
+              spellDC,
+              saveType,
+              hasNoDamage: true,
+              description: ability.description || action.description || `Target must make a DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} saving throw`
+            };
+            
+            // Log the spell save roll without damage
+            logRoll({
+              type: 'spell_save',
+              name: ability.ability_name || action.name,
+              dice: [],
+              details: {
+                spellDC,
+                saveType,
+                hasNoDamage: true,
+                description: `DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} save`
+              }
+            });
+            
+            useAction();
+            setLastAttackResult(result);
+            
+            if (isHidden) {
+              setHidden(false); // Casting spells breaks stealth
+            }
+          } else {
+            // Handle damage spells that weren't caught by the spell_save case
+            result = performStandardRoll(action);
+          }
+        } else {
+          result = performStandardRoll(action);
         }
       } else {
         result = performStandardRoll(action);
@@ -1255,6 +1319,23 @@ const DnDCompanionApp = () => {
                 />
               </div>
               
+              {/* Companions Section */}
+              <div className="bg-gray-800 rounded-xl p-6 border-2 border-cyan-500">
+                <h4 className="text-xl font-bold text-cyan-400 mb-4 flex items-center">
+                  <User className="mr-2" size={20} />
+                  Companions & Allies
+                </h4>
+                <EditableField
+                  value={activeCharacter.companions}
+                  onSave={async (value) => {
+                    await updateCharacterState(activeCharacter.id, { companions: value });
+                  }}
+                  placeholder="Who travels with your character? Describe companions, allies, pets, or important relationships."
+                  multiline={true}
+                  className="text-gray-300 leading-relaxed"
+                />
+              </div>
+
               {/* Personality Traits */}
               <div className="bg-gray-800 rounded-xl p-6 border-2 border-pink-500">
                 <h4 className="text-xl font-bold text-pink-400 mb-4 flex items-center">

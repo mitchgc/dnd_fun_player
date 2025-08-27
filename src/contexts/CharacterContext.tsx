@@ -40,6 +40,7 @@ interface Character {
   bonds?: string;
   flaws?: string;
   motives?: string;
+  companions?: string;
   profile_image?: string;
 }
 

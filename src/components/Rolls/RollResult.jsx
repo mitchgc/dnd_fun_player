@@ -158,14 +158,39 @@ const RollResult = ({
   };
 
   const renderSpellSaveResult = () => {
+    // Handle spells with no damage (like Suggestion)
+    if (result.hasNoDamage) {
+      return (
+        <div className="text-center">
+          <div className="text-lg text-gray-300 mb-2">Spell Cast Successfully!</div>
+          <div className="text-sm text-gray-400 mb-2">
+            DC {result.spellDC} {result.saveType?.charAt(0).toUpperCase() + result.saveType?.slice(1)} Save
+          </div>
+          <div className="text-xs text-gray-500">Target makes the saving throw</div>
+        </div>
+      );
+    }
+
+    // Handle damage spells
+    // Use the actual dice size from the result data
+    let dice;
+    if (result.rolls && result.rolls.length > 0) {
+      // If we have individual rolls, use them with the correct dice size
+      const diceSize = result.diceSize || 12; // Use stored dice size or default to 12
+      dice = result.rolls.map((roll) => ({
+        sides: diceSize,
+        value: roll
+      }));
+    } else {
+      // Fallback for older format
+      dice = [{ sides: 12, value: result.roll || result.total }];
+    }
+
     const spellRoll = createUnifiedRoll(
       'spell_save',
       selectedAction?.name || 'Spell',
-      [{ 
-        sides: 12, // Assuming d12 based on the hover details
-        value: result.roll 
-      }],
-      [] // No modifiers for spell damage typically
+      dice,
+      result.bonus ? [{ name: 'Bonus', value: result.bonus }] : []
     );
 
     return <UnifiedRollDisplay roll={spellRoll} />;

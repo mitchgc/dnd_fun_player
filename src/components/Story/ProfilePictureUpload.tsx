@@ -88,12 +88,12 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ currentImag
     <>
       <div className="flex flex-col items-center">
         <div
-          className={`relative w-48 h-64 cursor-pointer transition-all duration-300 rounded-lg overflow-hidden border-2 ${
+          className={`relative w-64 h-96 cursor-pointer transition-all duration-300 rounded-lg overflow-hidden border ${
             isDragging
-              ? 'border-green-400 bg-green-900/30'
+              ? 'border-gray-400 bg-gray-800/50'
               : previewImage
-              ? 'border-gray-500 hover:border-gray-400 shadow-xl hover:shadow-2xl'
-              : 'border-gray-600 hover:border-green-500 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900'
+              ? 'border-gray-600 hover:border-gray-500 shadow-xl hover:shadow-2xl'
+              : 'border-gray-700 hover:border-gray-600 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900'
           }`}
           onClick={handleImageClick}
           onContextMenu={handleRightClick}
@@ -108,16 +108,6 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ currentImag
                 alt={`${characterName} portrait`}
                 className="w-full h-full object-cover"
               />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRemoveImage();
-                }}
-                className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 transition-colors duration-200 shadow-lg"
-                title="Remove image"
-              >
-                <X size={16} />
-              </button>
               <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 flex items-center justify-center transition-all duration-200 opacity-0 hover:opacity-100">
                 <div className="text-center">
                   <div className="text-white drop-shadow-lg text-sm font-medium">Click to view</div>
