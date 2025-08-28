@@ -11,29 +11,114 @@ export const transformRollLogToUnified = (log) => {
 
   // Handle attack rolls (which have both attack and damage)
   if ((log.type === 'attack' || log.type === 'spell_attack') && log.dice.length >= 2) {
-    // Attack roll
-    const attackDice = log.dice[0];
-    const attackRoll = {
-      id: `${log.id}-attack`,
-      type: log.type,
-      name: log.name,
-      total: attackDice.total,
-      timestamp: log.timestamp,
-      breakdown: transformDiceGroupToBreakdown(attackDice, log.details, false, log.name)
-    };
-    rolls.push(attackRoll);
+    // Check if this is a multi-beam attack (like Eldritch Blast)
+    const hasMultipleBeams = log.dice.some(dice => dice.name?.includes('Beam'));
+    
+    if (hasMultipleBeams) {
+      // Handle multi-beam attacks
+      const beamGroups = {};
+      
+      // Group dice entries by beam number
+      log.dice.forEach(diceEntry => {
+        if (diceEntry.name?.includes('Beam')) {
+          const beamMatch = diceEntry.name.match(/Beam (\d+)/);
+          if (beamMatch) {
+            const beamNum = beamMatch[1];
+            if (!beamGroups[beamNum]) {
+              beamGroups[beamNum] = { attacks: [], damage: [] };
+            }
+            
+            if (diceEntry.name.includes('Attack')) {
+              beamGroups[beamNum].attacks.push(diceEntry);
+            } else if (diceEntry.name.includes('Damage') || diceEntry.type === 'modifier') {
+              beamGroups[beamNum].damage.push(diceEntry);
+            }
+          }
+        } else if (diceEntry.type === 'modifier') {
+          // This is a standalone modifier (like Agonizing Blast)
+          // Add it to all beam damage groups
+          Object.keys(beamGroups).forEach(beamNum => {
+            beamGroups[beamNum].damage.push({...diceEntry});
+          });
+        }
+      });
+      
+      // Create separate rolls for each beam
+      Object.entries(beamGroups).forEach(([beamNum, beamData]) => {
+        // Attack roll for this beam
+        if (beamData.attacks.length > 0) {
+          const attackDice = beamData.attacks[0];
+          rolls.push({
+            id: `${log.id}-beam${beamNum}-attack`,
+            type: log.type,
+            name: `Beam ${beamNum} Attack`,
+            total: attackDice.total,
+            timestamp: log.timestamp,
+            breakdown: transformDiceGroupToBreakdown(attackDice, log.details, false, log.name)
+          });
+        }
+        
+        // Combined damage roll for this beam
+        if (beamData.damage.length > 0) {
+          let totalDamage = 0;
+          const combinedBreakdown = [];
+          
+          beamData.damage.forEach(damageEntry => {
+            totalDamage += damageEntry.total;
+            if (damageEntry.type === 'base_damage') {
+              // Base damage dice
+              combinedBreakdown.push({
+                type: 'die',
+                label: `d${damageEntry.dice?.[0]?.match(/d(\d+)/)?.[1] || '10'}`,
+                value: damageEntry.total,
+                sides: parseInt(damageEntry.dice?.[0]?.match(/d(\d+)/)?.[1] || '10')
+              });
+            } else if (damageEntry.type === 'modifier') {
+              // Modifier like Agonizing Blast
+              combinedBreakdown.push({
+                type: 'modifier',
+                label: damageEntry.name,
+                value: damageEntry.total
+              });
+            }
+          });
+          
+          rolls.push({
+            id: `${log.id}-beam${beamNum}-damage`,
+            type: 'damage',
+            name: `Beam ${beamNum} Damage`,
+            total: totalDamage,
+            timestamp: log.timestamp,
+            breakdown: combinedBreakdown
+          });
+        }
+      });
+    } else {
+      // Standard single attack/damage pair
+      // Attack roll
+      const attackDice = log.dice[0];
+      const attackRoll = {
+        id: `${log.id}-attack`,
+        type: log.type,
+        name: log.name,
+        total: attackDice.total,
+        timestamp: log.timestamp,
+        breakdown: transformDiceGroupToBreakdown(attackDice, log.details, false, log.name)
+      };
+      rolls.push(attackRoll);
 
-    // Damage roll
-    const damageDice = log.dice[1];
-    const damageRoll = {
-      id: `${log.id}-damage`,
-      type: 'damage',
-      name: `${log.name.replace(' Attack', '')} Damage`,
-      total: damageDice.total,
-      timestamp: log.timestamp,
-      breakdown: transformDiceGroupToBreakdown(damageDice, log.details, true, log.name)
-    };
-    rolls.push(damageRoll);
+      // Damage roll
+      const damageDice = log.dice[1];
+      const damageRoll = {
+        id: `${log.id}-damage`,
+        type: 'damage',
+        name: `${log.name.replace(' Attack', '')} Damage`,
+        total: damageDice.total,
+        timestamp: log.timestamp,
+        breakdown: transformDiceGroupToBreakdown(damageDice, log.details, true, log.name)
+      };
+      rolls.push(damageRoll);
+    }
   } 
   // Handle spell save rolls (damage only)
   else if (log.type === 'spell_save') {

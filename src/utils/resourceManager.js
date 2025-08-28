@@ -166,7 +166,9 @@ export const getPassiveDamageBonuses = (abilities, weaponName, attackType) => {
   for (const ability of abilities) {
     if (!ability.ability_data?.effect_type) continue;
     
-    if (ability.ability_data.effect_type === 'damage_bonus') {
+    // Handle both damage bonuses and other spell modifiers
+    if (ability.ability_data.effect_type === 'damage_bonus' || 
+        ability.ability_data.effect_type === 'spell_modifier') {
       const appliesTo = ability.ability_data.applies_to;
       
       // Check if this bonus applies to the current attack
@@ -185,6 +187,7 @@ export const getPassiveDamageBonuses = (abilities, weaponName, attackType) => {
           name: ability.ability_name,
           damage: ability.ability_data.bonus_damage,
           damage_type: ability.ability_data.damage_type,
+          effect: ability.ability_data.effect,
           once_per_turn: ability.ability_data.once_per_turn
         });
       }

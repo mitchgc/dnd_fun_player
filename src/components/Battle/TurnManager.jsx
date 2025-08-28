@@ -4,8 +4,9 @@ import { Sword, Sparkles, Eye, EyeOff, Package } from 'lucide-react';
 import ActionButton from './ActionButton';
 import ActionInfoPopup from './ActionInfoPopup';
 import { getWeaponStats } from '../../utils/diceUtils';
-import { getActionGrantingAbilities } from '../../utils/resourceManager';
+import { getActionGrantingAbilities, getPassiveDamageBonuses } from '../../utils/resourceManager';
 import { useActionInfo } from '../../hooks/useActionInfo';
+import { generateRollActions } from '../../data/rollActionsGenerator';
 
 const TurnManager = ({
   character,
@@ -37,16 +38,26 @@ const TurnManager = ({
       onToggleHidden();
     } else {
       // If not hidden, trigger stealth roll through the roll modal
-      const stealthAction = { 
-        id: 'stealth', 
-        name: 'Stealth Check', 
-        type: 'skill',
-        ability: 'dexterity',
-        description: 'Hide from enemies',
-        diceType: 'd20',
-        modifier: Math.floor(((character?.ability_scores?.dexterity || 10) - 10) / 2)
-      };
-      onActionSelect(stealthAction);
+      // Use the proper skill system to get the correct stealth modifier
+      const rollActions = generateRollActions(character);
+      const stealthAction = rollActions.skills.find(skill => skill.id === 'stealth');
+      
+      if (stealthAction) {
+        onActionSelect(stealthAction);
+      } else {
+        // Fallback if stealth skill not found
+        console.warn('Stealth skill not found, using fallback');
+        const fallbackAction = { 
+          id: 'stealth', 
+          name: 'Stealth Check', 
+          type: 'skill',
+          ability: 'dexterity',
+          description: 'Hide from enemies',
+          diceType: 'd20',
+          modifier: Math.floor(((character?.ability_scores?.dexterity || 10) - 10) / 2)
+        };
+        onActionSelect(fallbackAction);
+      }
     }
   };
   
@@ -120,7 +131,7 @@ const TurnManager = ({
               </div>
             </div>
             
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {/* Weapon attacks */}
               {character?.dnd_character_weapons?.length > 0 && 
                 character.dnd_character_weapons.map((weapon) => {
@@ -172,15 +183,58 @@ const TurnManager = ({
                 const damage = ability.damage_dice || ability.ability_data?.damage;
                 const damageType = ability.damage_type || ability.ability_data?.damage_type;
                 
+                // Check if this is Eldritch Blast
+                const isEldritchBlast = ability.name?.toLowerCase().includes('eldritch blast');
+                
+                // Calculate beam count for Eldritch Blast
+                let beamCount = 1;
+                if (isEldritchBlast && character?.level) {
+                  if (character.level >= 17) beamCount = 4;
+                  else if (character.level >= 11) beamCount = 3;
+                  else if (character.level >= 5) beamCount = 2;
+                }
+                
+                // Get passive damage bonuses for Eldritch Blast
+                let passiveBonuses = [];
+                if (isEldritchBlast && character?.dnd_character_abilities) {
+                  passiveBonuses = getPassiveDamageBonuses(
+                    character.dnd_character_abilities,
+                    'Eldritch Blast',
+                    'spell_attack'
+                  );
+                }
+                
                 // Determine subtitle based on damage and uses
                 let subtitle = '';
                 if (ability.current_uses < 999) {
                   subtitle = `${ability.current_uses}/${ability.max_uses}`;
                   if (damage) {
-                    subtitle += ` • ${damage}`;
+                    if (isEldritchBlast) {
+                      const bonusValue = passiveBonuses.length > 0 ? 
+                        passiveBonuses.reduce((total, bonus) => {
+                          const bonusStr = String(bonus.damage || '0');
+                          const bonusNum = bonusStr.replace(/[^\d]/g, '') || '0';
+                          return total + parseInt(bonusNum);
+                        }, 0) : 0;
+                      subtitle += ` • ${damage}${bonusValue > 0 ? `+${bonusValue}` : ''} ${damageType || ''}`;
+                      if (beamCount > 1) subtitle += ` (${beamCount} beams)`;
+                    } else {
+                      subtitle += ` • ${damage}`;
+                    }
                   }
                 } else if (damage) {
-                  subtitle = `${damage}${damageType ? ` ${damageType}` : ''}`;
+                  if (isEldritchBlast) {
+                    const bonusValue = passiveBonuses.length > 0 ? 
+                      passiveBonuses.reduce((total, bonus) => {
+                        const bonusStr = String(bonus.damage || '0');
+                        const bonusNum = bonusStr.replace(/[^\d]/g, '') || '0';
+                        return total + parseInt(bonusNum);
+                      }, 0) : 0;
+                    subtitle = `${damage}${bonusValue > 0 ? `+${bonusValue}` : ''} ${damageType || ''}`;
+                    if (beamCount > 1) subtitle += ` (${beamCount} beams)`;
+                  } else {
+                    subtitle = `${damage}${damageType ? ` ${damageType}` : ''}`;
+                  }
                 } else {
                   subtitle = 'Cantrip';
                 }
@@ -223,7 +277,7 @@ const TurnManager = ({
               
               {/* No attacks message */}
               {(!character?.dnd_character_weapons?.length && !actionAbilities.length) && (
-                <div className="col-span-4 text-gray-400 text-center py-4">
+                <div className="col-span-2 sm:col-span-4 text-gray-400 text-center py-4">
                   No attacks available
                 </div>
               )}
@@ -258,7 +312,7 @@ const TurnManager = ({
               </div>
             </div>
             
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {/* Hide is always available */}
               <ActionButton
                 onClick={handleHideClick}
@@ -305,7 +359,7 @@ const TurnManager = ({
             {bonusActionAbilities.length > 0 && (
               <div className="mt-3">
                 <div className="text-xs text-gray-400 uppercase mb-2">Special Abilities</div>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {bonusActionAbilities.map(ability => {
                     // Get damage information from ability data
                     const damage = ability.damage_dice || ability.ability_data?.damage;
@@ -373,7 +427,7 @@ const TurnManager = ({
           </div>
 
           {/* End Turn Controls */}
-          <div className="grid grid-cols-4 gap-3 pt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
             <ActionButton
               onClick={onResetTurn}
               variant="primary"

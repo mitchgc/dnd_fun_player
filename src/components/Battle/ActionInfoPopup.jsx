@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { X, Sword, Sparkles, Info } from 'lucide-react';
+import { getPassiveDamageBonuses } from '../../utils/resourceManager';
 
 const ActionInfoPopup = ({ 
   isVisible, 
@@ -67,10 +68,6 @@ const ActionInfoPopup = ({
 
     return (
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Sword className="text-red-400" size={20} />
-          <h3 className="font-bold text-lg text-red-400">{weapon.name}</h3>
-        </div>
         
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
@@ -126,6 +123,28 @@ const ActionInfoPopup = ({
     const ability = actionData.ability;
     if (!ability) return null;
 
+    // Check if this is Eldritch Blast - special handling needed
+    const isEldritchBlast = ability.ability_name?.toLowerCase().includes('eldritch blast') || 
+                           ability.name?.toLowerCase().includes('eldritch blast');
+    
+    // Calculate beam count for Eldritch Blast based on character level
+    let beamCount = 1;
+    if (isEldritchBlast && character?.level) {
+      if (character.level >= 17) beamCount = 4;
+      else if (character.level >= 11) beamCount = 3;
+      else if (character.level >= 5) beamCount = 2;
+    }
+
+    // Get passive damage bonuses that apply to this ability
+    let passiveBonuses = [];
+    if (character?.dnd_character_abilities && isEldritchBlast) {
+      passiveBonuses = getPassiveDamageBonuses(
+        character.dnd_character_abilities, 
+        'Eldritch Blast', 
+        'spell_attack'
+      );
+    }
+
     // Determine ability color based on type
     const getAbilityColor = (featureType) => {
       switch(featureType) {
@@ -147,10 +166,6 @@ const ActionInfoPopup = ({
 
     return (
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className={colorClass.split(' ')[0]} size={20} />
-          <h3 className={`font-bold text-lg ${colorClass.split(' ')[0]}`}>{ability.ability_name}</h3>
-        </div>
 
         {/* Spell Level and School */}
         {isSpell && (
@@ -182,9 +197,31 @@ const ActionInfoPopup = ({
             <div>
               <span className="text-gray-400 block">Damage</span>
               <span className="text-white font-bold">
-                {ability.ability_data.damage}
-                {ability.ability_data?.damage_type && (
-                  <span className="text-gray-300"> {ability.ability_data.damage_type}</span>
+                {isEldritchBlast ? (
+                  <>
+                    {ability.ability_data.damage}
+                    {passiveBonuses.length > 0 && (
+                      <>
+                        +{passiveBonuses.reduce((total, bonus) => {
+                          // Agonizing Blast adds Charisma modifier
+                          const bonusStr = String(bonus.damage || '0');
+                          const bonusValue = bonusStr.replace(/[^\d]/g, '') || '0';
+                          return total + parseInt(bonusValue);
+                        }, 0)}
+                      </>
+                    )}
+                    <span className="text-gray-300"> {ability.ability_data.damage_type}</span>
+                    {beamCount > 1 && (
+                      <span className="text-purple-300"> ({beamCount} beams)</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {ability.ability_data.damage}
+                    {ability.ability_data?.damage_type && (
+                      <span className="text-gray-300"> {ability.ability_data.damage_type}</span>
+                    )}
+                  </>
                 )}
               </span>
             </div>
@@ -245,6 +282,31 @@ const ActionInfoPopup = ({
           </div>
         )}
 
+        {/* Eldritch Blast Invocation Bonuses */}
+        {isEldritchBlast && passiveBonuses.length > 0 && (
+          <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-yellow-400 font-bold">Invocation Bonuses</span>
+            </div>
+            <div className="space-y-1">
+              {passiveBonuses.map((bonus, index) => (
+                <div key={index} className="text-sm">
+                  <span className="text-white font-bold">{bonus.name}</span>
+                  {bonus.damage && (
+                    <span className="text-gray-300"> - +{bonus.damage} damage per beam</span>
+                  )}
+                  {bonus.effect && (
+                    <span className="text-gray-300"> - {bonus.effect}</span>
+                  )}
+                  {!bonus.damage && !bonus.effect && bonus.name.toLowerCase().includes('repelling') && (
+                    <span className="text-gray-300"> - Push target 10 feet on hit</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Ability type and action economy */}
         <div className="text-xs text-gray-400 uppercase tracking-wide flex justify-between items-center">
           <span>
@@ -262,7 +324,21 @@ const ActionInfoPopup = ({
         {ability.ability_data?.scaling && (
           <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-2">
             <div className="text-xs text-blue-300 font-semibold mb-1">At Higher Levels</div>
-            <div className="text-xs text-gray-300">{ability.ability_data.scaling}</div>
+            <div className="text-xs text-gray-300">
+              {typeof ability.ability_data.scaling === 'string' ? 
+                ability.ability_data.scaling : 
+                Object.entries(ability.ability_data.scaling).map(([level, data]) => (
+                  <div key={level} className="mb-1">
+                    <span className="font-semibold">{level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}:</span>{' '}
+                    {typeof data === 'string' ? data : 
+                     typeof data === 'object' && data.num_beams ? 
+                       `${data.num_beams} beams` : 
+                       JSON.stringify(data)
+                    }
+                  </div>
+                ))
+              }
+            </div>
           </div>
         )}
 

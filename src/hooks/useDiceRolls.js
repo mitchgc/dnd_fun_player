@@ -184,25 +184,38 @@ export const useDiceRolls = () => {
     const attackBonus = ability.ability_data?.attack_bonus || 0;
     const baseDamage = ability.ability_data?.damage || '1d10';
     const damageType = ability.ability_data?.damage_type || 'force';
-    const numBeams = ability.ability_data?.num_beams || 1;
+    // Calculate beam count based on character level for Eldritch Blast
+    let numBeams = 1;
+    if (ability.ability_name?.toLowerCase().includes('eldritch blast') && character?.level) {
+      if (character.level >= 17) numBeams = 4;
+      else if (character.level >= 11) numBeams = 3; 
+      else if (character.level >= 5) numBeams = 2;
+    } else {
+      numBeams = ability.ability_data?.num_beams || ability.ability_data?.current_beams || 1;
+    }
     
     // Get passive damage bonuses (Agonizing Blast, etc.)
     const damageBonuses = getPassiveDamageBonuses(
       character.dnd_character_abilities || [], 
       ability.ability_name, 
-      'spell'
+      'spell_attack'
     );
     
     let attackRolls = [];
     let damageRolls = [];
     let totalDamage = 0;
     let hits = 0;
+    let genieWrathUsed = false; // Track if Genie's Wrath has been applied this turn
+    
+    // Separate bonuses by frequency
+    const perBeamBonuses = damageBonuses.filter(bonus => !bonus.once_per_turn);
+    const oncePerTurnBonuses = damageBonuses.filter(bonus => bonus.once_per_turn);
     
     // Roll for each beam
     for (let i = 0; i < numBeams; i++) {
       const attackRoll = rollDice(20);
       const attackTotal = attackRoll + attackBonus + (isHidden ? 0 : 0); // Could add advantage later
-      attackRolls.push({ roll: attackRoll, total: attackTotal });
+      attackRolls.push({ roll: attackRoll, total: attackTotal, beamNumber: i + 1 });
       
       // Assume AC 15 for hit calculation (could be parameterized later)
       const hits_target = attackTotal >= 15;
@@ -232,65 +245,149 @@ export const useDiceRolls = () => {
         };
         
         const damageResult = parseDamageRoll(baseDamage);
-        const damageRoll = damageResult.total;
+        const damageRoll = damageResult.total || 0;
         let beamDamage = damageRoll;
         
-        // Apply passive damage bonuses
+        // Apply per-beam bonuses (like Agonizing Blast)
         let bonusDescription = [];
-        for (const bonus of damageBonuses) {
-          beamDamage += bonus.damage;
-          bonusDescription.push(`+${bonus.damage} ${bonus.name}`);
+        let additionalDamageTypes = [];
+        
+        for (const bonus of perBeamBonuses) {
+          const bonusValue = parseInt(String(bonus.damage || bonus.bonus_damage || '0').replace(/[^\d]/g, '')) || 0;
+          if (!isNaN(bonusValue) && bonusValue > 0) {
+            beamDamage += bonusValue;
+            bonusDescription.push(`+${bonusValue} ${bonus.name}`);
+            if (bonus.damage_type && bonus.damage_type !== damageType) {
+              additionalDamageTypes.push(`${bonusValue} ${bonus.damage_type}`);
+            }
+          }
         }
+        
+        // Apply once-per-turn bonuses (like Genie's Wrath) only to first hitting beam
+        if (!genieWrathUsed && oncePerTurnBonuses.length > 0) {
+          for (const bonus of oncePerTurnBonuses) {
+            const bonusValue = parseInt(String(bonus.damage || bonus.bonus_damage || '0').replace(/[^\d]/g, '')) || 0;
+            if (!isNaN(bonusValue) && bonusValue > 0) {
+              beamDamage += bonusValue;
+              bonusDescription.push(`+${bonusValue} ${bonus.name} (once per turn)`);
+              if (bonus.damage_type && bonus.damage_type !== damageType) {
+                additionalDamageTypes.push(`${bonusValue} ${bonus.damage_type}`);
+              }
+            }
+          }
+          genieWrathUsed = true;
+        }
+        
+        // Ensure all values are valid numbers
+        const validBeamDamage = isNaN(beamDamage) ? damageRoll : beamDamage;
+        const validBonus = isNaN(validBeamDamage - damageRoll) ? 0 : validBeamDamage - damageRoll;
         
         damageRolls.push({ 
           roll: damageRoll, 
-          bonus: beamDamage - damageRoll,
-          total: beamDamage,
+          bonus: validBonus,
+          total: validBeamDamage,
           bonuses: bonusDescription,
           rolls: damageResult.rolls,
           diceSize: damageResult.diceSize,
-          baseDice: baseDamage
+          baseDice: baseDamage,
+          beamNumber: i + 1,
+          additionalDamageTypes
         });
-        totalDamage += beamDamage;
+        totalDamage += validBeamDamage;
       }
     }
     
+    // Structure result to work with existing attack display system
+    // For multi-beam spells, we'll create multiple "attack" entries
     const result = {
-      type: 'spell_attack',
+      type: 'attack',
       name: ability.ability_name,
+      weapon: ability.ability_name,
+      attackRoll: attackRolls[0]?.roll || 0,
+      totalAttack: attackRolls[0]?.total || 0,
+      totalDamage: totalDamage || 0,
+      total: totalDamage || 0,
+      isCritical: false, // TODO: Add crit logic later
+      // Additional data for multi-beam display
       attackRolls,
       damageRolls,
-      totalDamage,
       hits,
       numBeams,
       damageType,
       damageBonuses: damageBonuses.map(b => b.name)
     };
     
-    // Log the spell attack
-    logRoll({
-      type: 'spell_attack',
-      name: ability.ability_name,
-      dice: attackRolls.map((attack, i) => ({
-        name: `Beam ${i + 1} Attack`,
+    // Log each beam separately for clearer display
+    const allDiceRolls = [];
+    
+    // Add attack rolls for all beams
+    attackRolls.forEach((attack) => {
+      allDiceRolls.push({
+        name: `Beam ${attack.beamNumber} Attack`,
         dice: [`d20: ${attack.roll}`],
         bonus: attackBonus,
         total: attack.total,
         hit: attack.total >= 15
-      })).concat(
-        damageRolls.map((damage, i) => ({
-          name: `Beam ${i + 1} Damage`,
-          dice: [`d10: ${damage.roll}`],
-          bonus: damage.bonus,
-          total: damage.total,
-          bonuses: damage.bonuses
-        }))
-      ),
+      });
+    });
+    
+    // Add damage rolls only for hitting beams - with individual modifier breakdown
+    damageRolls.forEach((damage) => {
+      // Create separate entries for base damage and each modifier
+      const damageEntries = [];
+      
+      // Base damage die
+      damageEntries.push({
+        name: `Beam ${damage.beamNumber} Base Damage`,
+        dice: damage.rolls.map(roll => `d${damage.diceSize}: ${roll}`),
+        bonus: 0,
+        total: damage.roll,
+        type: 'base_damage'
+      });
+      
+      // Individual bonus modifiers
+      damage.bonuses.forEach((bonusDesc, bonusIndex) => {
+        // Extract bonus value from description like "+4 Agonizing Blast"
+        const bonusMatch = bonusDesc.match(/\+(\d+)\s+(.+)/);
+        if (bonusMatch) {
+          const bonusValue = parseInt(bonusMatch[1]);
+          const bonusName = bonusMatch[2];
+          
+          damageEntries.push({
+            name: `${bonusName}`,
+            dice: [],
+            bonus: bonusValue,
+            total: bonusValue,
+            type: 'modifier'
+          });
+        }
+      });
+      
+      // Add all damage entries for this beam
+      allDiceRolls.push(...damageEntries);
+    });
+
+    console.log('🎯 Eldritch Blast Roll Data:', { 
+      type: 'attack',
+      name: ability.ability_name,
+      dice: allDiceRolls,
       details: {
         totalDamage,
         hits: `${hits}/${numBeams}`,
         damageType,
-        bonuses: damageBonuses.map(b => b.name)
+        bonuses: damageBonuses.map(b => `${b.name}${b.once_per_turn ? ' (once per turn)' : ''}`)
+      }
+    });
+
+    logRoll({
+      type: 'attack',
+      name: ability.ability_name,
+      dice: allDiceRolls,
+      details: {
+        totalDamage,
+        hits: `${hits}/${numBeams}`,
+        damageType,
+        bonuses: damageBonuses.map(b => `${b.name}${b.once_per_turn ? ' (once per turn)' : ''}`)
       }
     });
     
