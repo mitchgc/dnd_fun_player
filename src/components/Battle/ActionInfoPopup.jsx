@@ -123,24 +123,20 @@ const ActionInfoPopup = ({
     const ability = actionData.ability;
     if (!ability) return null;
 
-    // Check if this is Eldritch Blast - special handling needed
-    const isEldritchBlast = ability.ability_name?.toLowerCase().includes('eldritch blast') || 
-                           ability.name?.toLowerCase().includes('eldritch blast');
+    // Use configurable spell resolver instead of hardcoded Eldritch Blast logic
+    const { resolveSpellAttack } = require('../../utils/spellResolvers');
+    const spellConfig = resolveSpellAttack(ability, character, false);
     
-    // Calculate beam count for Eldritch Blast based on character level
-    let beamCount = 1;
-    if (isEldritchBlast && character?.level) {
-      if (character.level >= 17) beamCount = 4;
-      else if (character.level >= 11) beamCount = 3;
-      else if (character.level >= 5) beamCount = 2;
-    }
+    const isMultiAttack = spellConfig?.type === 'multi_attack';
+    const beamCount = spellConfig?.numBeams || 1;
+    const spellName = spellConfig?.spellName || ability.ability_name;
 
     // Get passive damage bonuses that apply to this ability
     let passiveBonuses = [];
-    if (character?.dnd_character_abilities && isEldritchBlast) {
+    if (character?.dnd_character_abilities && isMultiAttack) {
       passiveBonuses = getPassiveDamageBonuses(
         character.dnd_character_abilities, 
-        'Eldritch Blast', 
+        spellName, 
         'spell_attack'
       );
     }
@@ -197,7 +193,7 @@ const ActionInfoPopup = ({
             <div>
               <span className="text-gray-400 block">Damage</span>
               <span className="text-white font-bold">
-                {isEldritchBlast ? (
+                {isMultiAttack ? (
                   <>
                     {ability.ability_data.damage}
                     {passiveBonuses.length > 0 && (
@@ -282,8 +278,8 @@ const ActionInfoPopup = ({
           </div>
         )}
 
-        {/* Eldritch Blast Invocation Bonuses */}
-        {isEldritchBlast && passiveBonuses.length > 0 && (
+        {/* Multi-Attack Spell Invocation Bonuses */}
+        {isMultiAttack && passiveBonuses.length > 0 && (
           <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-yellow-400 font-bold">Invocation Bonuses</span>

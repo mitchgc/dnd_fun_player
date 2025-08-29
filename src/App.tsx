@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Sword, Shield, User, BookOpen, Sparkles, Menu } from 'lucide-react';
+import { Sword, Shield, User, BookOpen, Sparkles, Menu, Dice6 } from 'lucide-react';
 
 // Import new components
 import DefensivePanel from './components/Battle/DefensivePanel';
@@ -13,14 +13,16 @@ import MobileNav from './components/Navigation/MobileNav';
 import ProfilePictureUpload from './components/Story/ProfilePictureUpload';
 import EditableField from './components/Story/EditableField';
 
+// Import new unified roll system components
+import ModernRollInterface from './components/Rolls/ModernRollInterface';
+
 // Import Character Context
 import { CharacterProvider, useCharacter } from './contexts/CharacterContext';
 
 // Import custom hooks
 import { useCharacterState } from './hooks/useCharacterState';
-import { useDiceRolls } from './hooks/useDiceRolls';
+import { useUnifiedRolls } from './hooks/useUnifiedRolls';
 import { useAuth } from './hooks/useAuth';
-import { rollDice } from './utils/diceUtils';
 
 // Helper function to calculate ability modifier
 const calcModifier = (score) => Math.floor((score - 10) / 2);
@@ -107,16 +109,24 @@ const DnDCompanionApp = () => {
     </div>
   ), []);
   
-  // Initialize dice roll hooks
+  // Initialize unified roll system - NO LEGACY SYSTEM
   const {
-    rollLogs,
-    performAttackRoll,
-    performSpellAttack,
-    performStandardRoll,
-    performHealingRoll,
-    logRoll,
-    clearLogs
-  } = useDiceRolls();
+    executeRoll,
+    createRollDefinition,
+    rollHistory,
+    clearHistory
+  } = useUnifiedRolls();
+  
+  // Roll logging (will be unified later)
+  const [rollLogs, setRollLogs] = useState([]);
+  const logRoll = useCallback((rollResult) => {
+    setRollLogs(prev => [rollResult, ...prev.slice(0, 49)]); // Keep last 50 rolls
+  }, []);
+  const clearLogs = useCallback(() => {
+    setRollLogs([]);
+    clearHistory();
+  }, [clearHistory]);
+  
   
   // Generate roll actions for the character from Supabase data - move before early return
   const rollActions = useMemo(() => {
@@ -423,7 +433,7 @@ const DnDCompanionApp = () => {
   }, []);
 
   // Action handlers
-  const handleActionSelect = useCallback((action) => {
+  const handleActionSelect = useCallback(async (action) => {
     if (action.type === 'toggle' && action.id === 'hide-toggle') {
       toggleHidden();
       closeRollPopup();
@@ -496,12 +506,25 @@ const DnDCompanionApp = () => {
     }));
     
     // Start the rolling sequence
-    setTimeout(() => {
+    setTimeout(async () => {
       let result;
       
       if (action.type === 'attack') {
         const weaponName = action.weapon || action.name?.replace(' Attack', '');
-        result = performAttackRoll(weaponName, isHidden, activeCharacter);
+        // Use unified weapon attack system
+        const weapon = activeCharacter.dnd_character_weapons?.find(w => 
+          w.name.toLowerCase() === weaponName.toLowerCase()
+        );
+        
+        if (weapon) {
+          const { performWeaponAttackUnified } = require('./utils/rollIntegration');
+          const context = { isHidden, target: 'medium' };
+          const unifiedAttack = performWeaponAttackUnified(weapon, activeCharacter, context);
+          
+          if (unifiedAttack) {
+            result = await executeRoll(unifiedAttack.rollDefinition);
+          }
+        }
         useAction();
         setLastAttackResult(result);
         
@@ -512,8 +535,14 @@ const DnDCompanionApp = () => {
         // Handle Eldritch Blast and other spell attacks
         const ability = activeCharacter.dnd_character_abilities?.find(a => a.id === action.id);
         if (ability) {
-          const spellAttackResult = performSpellAttack(ability, isHidden, activeCharacter);
-          result = spellAttackResult;
+          // Use unified spell attack system
+          const { performSpellAttackUnified } = require('./utils/rollIntegration');
+          const context = { isHidden, target: 'medium' };
+          const unifiedSpell = performSpellAttackUnified(ability, activeCharacter, context);
+          
+          if (unifiedSpell) {
+            result = await executeRoll(unifiedSpell.rollDefinition);
+          }
           useAction();
           setLastAttackResult(result);
           
@@ -522,130 +551,119 @@ const DnDCompanionApp = () => {
           }
         }
       } else if (action.type === 'spell_save') {
-        // Handle save-based spells
+        // Handle save-based spells using unified system
         const ability = activeCharacter.dnd_character_abilities?.find(a => a.id === action.id);
         if (ability) {
-          // Check if this spell actually has damage
           const damageDice = action.damage || ability.damage_dice || ability.ability_data?.damage;
-          const damageType = action.damageType || ability.damage_type || ability.ability_data?.damage_type;
-          const spellDC = ability.ability_data?.saving_throw_dc || 10;
-          const saveType = ability.ability_data?.saving_throw_stat || 'wisdom';
-          
-          // If spell has no damage (like Suggestion, Animal Friendship), don't roll damage
-          // Check for various ways a spell might indicate no damage
-          const hasNoDamage = !damageDice || 
-                             damageDice === '' || 
-                             damageDice === '0' ||
-                             damageDice === 'none' ||
-                             damageDice === 'None' ||
-                             !damageDice.match(/\d+d\d+/); // Must have dice pattern to be considered damage
+          const hasNoDamage = !damageDice || damageDice === '' || damageDice === '0' || damageDice === 'none' || damageDice === 'None' || !damageDice.match(/\d+d\d+/);
           
           if (hasNoDamage) {
+            // No damage spell - just create a simple result
             result = {
-              type: 'spell_save',
-              name: ability.ability_name,
-              spellDC,
-              saveType,
-              hasNoDamage: true,
-              description: ability.description || `Target must make a DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} saving throw`
-            };
-            
-            // Log the spell save roll without damage
-            logRoll({
-              type: 'spell_save',
-              name: ability.ability_name,
-              dice: [],
-              details: {
-                spellDC,
-                saveType,
-                hasNoDamage: true,
-                description: `DC ${spellDC} ${saveType.charAt(0).toUpperCase() + saveType.slice(1)} save`
+              total: 0,
+              breakdown: [],
+              criticalSuccess: false,
+              criticalFailure: false,
+              metadata: {
+                type: 'spell_save',
+                definition: {
+                  id: ability.id,
+                  type: 'spell_save',
+                  name: ability.ability_name,
+                  context: {
+                    character: activeCharacter,
+                    source: { type: 'spell', name: ability.ability_name, tags: ['spell_save'] },
+                    environment: { advantage: false, disadvantage: false, hidden: false, blessed: false, inspired: false, conditions: [] }
+                  }
+                },
+                spellDC: ability.ability_data?.saving_throw_dc || 10,
+                saveType: ability.ability_data?.saving_throw_stat || 'wisdom',
+                hasNoDamage: true
               }
-            });
+            };
           } else {
-            // Parse damage dice string for spells with damage (e.g., "1d12", "2d6", "3d4+2")
-            const parseDamageRoll = (diceString) => {
-              const match = diceString.match(/(\d+)d(\d+)(?:\+(\d+))?/);
-              if (!match) return { total: 0, rolls: [], bonus: 0 };
-              
-              const numDice = parseInt(match[1]);
-              const diceSize = parseInt(match[2]);
-              const bonus = parseInt(match[3] || 0);
-              
-              const rolls = [];
-              let total = bonus;
-              
-              for (let i = 0; i < numDice; i++) {
-                const roll = rollDice(diceSize);
-                rolls.push(roll);
-                total += roll;
-              }
-              
-              return { total, rolls, bonus, diceSize, numDice };
+            // Damage spell - use unified system
+            const context = {
+              character: {
+                id: activeCharacter.id,
+                level: activeCharacter.level || 1,
+                ability_scores: (activeCharacter as any).dnd_character_stats || {},
+                proficiencyBonus: (activeCharacter as any).proficiency_bonus || Math.ceil((activeCharacter.level || 1) / 4) + 1,
+                ...activeCharacter
+              },
+              source: { type: 'spell' as const, name: ability.ability_name, tags: ['spell_save', 'damage'] },
+              environment: { advantage: false, disadvantage: false, hidden: false, blessed: false, inspired: false, conditions: [] }
             };
-            
-            const damageResult = parseDamageRoll(damageDice);
-            
-            result = {
-              type: 'spell_save',
-              name: ability.ability_name,
-              damageRoll: damageResult.total,
-              damage: damageResult.total,
-              total: damageResult.total,
-              roll: damageResult.total,
-              spellDC,
-              saveType,
-              damageType: damageType,
-              rolls: damageResult.rolls,
-              bonus: damageResult.bonus,
-              diceSize: damageResult.diceSize,
-              numDice: damageResult.numDice,
-              hasDamage: true  // Flag to indicate this spell has damage
-            };
-            
-            // Format dice string for logging
-            const diceStrings = damageResult.rolls.map((roll, i) => 
-              `d${damageResult.diceSize}: ${roll}`
-            );
-            
-            // Log the spell save roll with damage
-            logRoll({
-              type: 'spell_save',
-              name: ability.ability_name,
-              dice: [{
-                name: 'Damage Roll',
-                dice: diceStrings,
-                bonus: damageResult.bonus,
-                total: damageResult.total
-              }],
-              details: {
-                spellDC,
-                saveType,
-                damageType: damageType,
-                damageDice: damageDice
-              }
-            });
+            const rollDefinition = createRollDefinition('damage', context, damageDice);
+            result = await executeRoll(rollDefinition);
+            // Add spell-specific metadata
+            if (result.metadata) {
+              result.metadata.spellDC = ability.ability_data?.saving_throw_dc || 10;
+              result.metadata.saveType = ability.ability_data?.saving_throw_stat || 'wisdom';
+              result.metadata.damageType = ability.damage_type || ability.ability_data?.damage_type;
+            }
           }
           
           useAction();
           setLastAttackResult(result);
           
           if (isHidden) {
-            setHidden(false); // Casting spells breaks stealth
+            setHidden(false);
           }
         }
       } else if (action.type === 'healing') {
         // Only short rest and basic potion reach here (custom and long-rest handled earlier)
-        result = performHealingRoll(action, activeCharacter?.current_hp || 0, activeCharacter);
-        if (result.healingAmount !== undefined) {
-          applyHealing(result.healingAmount);
+        // Use unified healing system
+        const context = {
+          character: {
+            id: activeCharacter.id,
+            level: activeCharacter.level || 1,
+            ability_scores: (activeCharacter as any).dnd_character_stats || {},
+            proficiencyBonus: (activeCharacter as any).proficiency_bonus || Math.ceil((activeCharacter.level || 1) / 4) + 1,
+            ...activeCharacter
+          },
+          source: { type: 'custom' as const, name: action.name, tags: ['healing'] },
+          environment: { advantage: false, disadvantage: false, hidden: false, blessed: false, inspired: false, conditions: [] }
+        };
+        const rollDefinition = createRollDefinition('healing', context, action.dice || '2d4+2');
+        result = await executeRoll(rollDefinition);
+        
+        // Apply healing using unified roll result
+        const healingAmount = result.total || 0;
+        if (healingAmount > 0) {
+          applyHealing(healingAmount);
         }
       } else {
-        result = performStandardRoll(action);
+        // Use unified skill check system
+        const { performSkillCheckUnified } = require('./utils/rollIntegration');
+        
+        if (action.type === 'skill') {
+          const unifiedSkill = performSkillCheckUnified(activeCharacter, action.name);
+          if (unifiedSkill) {
+            result = await executeRoll(unifiedSkill.rollDefinition);
+          }
+        } else {
+          // For other action types, create a basic roll definition
+          const context = {
+            character: {
+              id: activeCharacter.id,
+              level: activeCharacter.level || 1,
+              ability_scores: (activeCharacter as any).dnd_character_stats || {},
+              proficiencyBonus: (activeCharacter as any).proficiency_bonus || Math.ceil((activeCharacter.level || 1) / 4) + 1,
+              ...activeCharacter
+            },
+            source: { type: 'ability' as const, name: action.name, tags: [action.type] },
+            environment: { advantage: false, disadvantage: false, hidden: false, blessed: false, inspired: false, conditions: [] }
+          };
+          const rollDefinition = createRollDefinition('raw', context, '1d20');
+          result = await executeRoll(rollDefinition);
+        }
         
         // Special handling for initiative
         if (action.id === 'initiative') {
-          setInitiativeRoll({ roll: result.roll, total: result.total });
+          // Extract the d20 roll from unified result breakdown
+          const d20Roll = result.breakdown?.[0]?.value || result.total;
+          setInitiativeRoll({ roll: d20Roll, total: result.total });
         }
         
         // Special handling for stealth
@@ -661,7 +679,7 @@ const DnDCompanionApp = () => {
         result
       }));
     }, 2000);
-  }, [performAttackRoll, performSpellAttack, performStandardRoll, performHealingRoll, isHidden, activeCharacter?.current_hp, useAction, setHidden, applyHealing, setInitiativeRoll, toggleHidden, closeRollPopup]);
+  }, [executeRoll, createRollDefinition, isHidden, activeCharacter, useAction, setHidden, applyHealing, setInitiativeRoll, toggleHidden, closeRollPopup]);
 
   const handleAttack = useCallback((weaponKey) => {
     if (turnState.actionUsed) return;
@@ -1347,6 +1365,45 @@ const DnDCompanionApp = () => {
     );
   };
 
+  // Unified Roll System Demo Page
+  const RollsPage = () => {
+    if (!activeCharacter) {
+      return (
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 border-2 border-gray-600">
+            <div className="text-white text-center">
+              No character selected
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 md:p-6 space-y-6">
+        <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-2xl shadow-xl p-6 border-2 border-blue-600">
+          <h2 className="text-3xl font-bold text-white mb-4 flex items-center">
+            <Dice6 className="mr-3 text-blue-400" size={32} />
+            Unified Roll System Demo
+          </h2>
+          <p className="text-blue-200">
+            Experience the new unified rolling system with pre-roll analysis, advanced dice notation, 
+            and transparent modifier resolution. Compare it to the legacy system below.
+          </p>
+        </div>
+
+        {/* Modern Roll Interface */}
+        <ModernRollInterface 
+          character={{
+            ...activeCharacter,
+            proficiencyBonus: calcProficiencyBonus(activeCharacter.level || 1)
+          }} 
+        />
+
+      </div>
+    );
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-1000 ${
       isHidden 
@@ -1425,6 +1482,21 @@ const DnDCompanionApp = () => {
               <BookOpen size={24} />
               <span className="text-lg">Journal</span>
             </button>
+            <button
+              onClick={() => setActiveTab('rolls')}
+              className={`flex items-center space-x-3 py-6 px-8 font-bold transition-all duration-300 ${
+                activeTab === 'rolls'
+                  ? isHidden 
+                    ? 'text-purple-400 border-b-4 border-purple-400 bg-gray-800'
+                    : 'text-blue-400 border-b-4 border-blue-400 bg-gray-700'
+                  : isHidden
+                    ? 'text-gray-300 active:text-purple-400 active:bg-gray-800 rounded-t-lg'
+                    : 'text-gray-300 active:text-blue-400 active:bg-gray-700 rounded-t-lg'
+              }`}
+            >
+              <Dice6 size={24} />
+              <span className="text-lg">Rolls</span>
+            </button>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -1473,6 +1545,7 @@ const DnDCompanionApp = () => {
         {activeTab === 'stats' && <StatsPage />}
         {activeTab === 'backstory' && <StoryPage />}
         {activeTab === 'journal' && <CollaborativeJournal />}
+        {activeTab === 'rolls' && <RollsPage />}
       </div>
 
       {/* Floating Roll Button */}

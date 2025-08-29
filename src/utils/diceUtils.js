@@ -1,27 +1,26 @@
 import { getConditionalDamageBonuses } from './resourceManager';
+import { parseDiceExpression } from './diceParser';
 
 // Dice rolling utilities
 export const rollDice = (sides) => Math.floor(Math.random() * sides) + 1;
 
-// Calculate weapon stats with sneak attack potential
+// Calculate weapon stats using unified dice parser
 export const getWeaponStats = (weaponName, isHidden, character) => {
   const weapon = character?.dnd_character_weapons?.find(w => 
     w.name.toLowerCase() === weaponName.toLowerCase()
   );
   if (!weapon) return { minDamage: 1, maxDamage: 6, minHit: 1, maxHit: 20, hasAdvantage: false };
   
-  let minDamage, maxDamage;
+  // Parse weapon damage dice using unified system
+  const damageDice = weapon.damage_dice || '1d6';
+  const parsedDamage = parseDiceExpression(damageDice);
   const damageBonus = weapon.damage_bonus || 0;
   
-  if (weapon.damage_dice?.includes('d8')) {
-    minDamage = 1 + damageBonus;
-    maxDamage = 8 + damageBonus;
-  } else {
-    minDamage = 1 + damageBonus;
-    maxDamage = 6 + damageBonus;
-  }
+  // Calculate damage range from parsed dice
+  let minDamage = parsedDamage.count + damageBonus; // minimum roll is count * 1
+  let maxDamage = (parsedDamage.count * parsedDamage.sides) + damageBonus;
   
-  // Add conditional damage potential (like Sneak Attack)
+  // Add conditional damage potential using unified parser
   const conditionalBonuses = getConditionalDamageBonuses(
     character?.dnd_character_abilities || [], 
     weaponName, 
@@ -31,9 +30,19 @@ export const getWeaponStats = (weaponName, isHidden, character) => {
   
   if (conditionalBonuses.length > 0) {
     for (const bonus of conditionalBonuses) {
-      if (bonus.damage_dice?.includes('3d6')) {
-        minDamage += 3; // minimum 3d6
-        maxDamage += 18; // maximum 3d6
+      if (bonus.damage_dice) {
+        try {
+          const parsedConditional = parseDiceExpression(bonus.damage_dice);
+          minDamage += parsedConditional.count; // minimum is count * 1
+          maxDamage += parsedConditional.count * parsedConditional.sides;
+        } catch (error) {
+          console.warn('Failed to parse conditional damage dice:', bonus.damage_dice, error);
+          // Fallback: treat as the old hardcoded 3d6 case
+          if (bonus.damage_dice?.includes('3d6')) {
+            minDamage += 3;
+            maxDamage += 18;
+          }
+        }
       }
     }
   }
@@ -45,102 +54,3 @@ export const getWeaponStats = (weaponName, isHidden, character) => {
   return { minDamage, maxDamage, minHit, maxHit, hasAdvantage: isHidden };
 };
 
-// Enhanced attack rolling with better critical hit handling
-export const rollAttack = (selectedWeapon, isHidden, character, rollDiceFn = rollDice) => {
-  const weapon = character?.dnd_character_weapons?.find(w => 
-    w.name.toLowerCase() === selectedWeapon.toLowerCase()
-  );
-  if (!weapon) {
-    console.error('Weapon not found:', selectedWeapon, 'Available weapons:', character?.dnd_character_weapons?.map(w => w.name));
-    return null;
-  }
-  
-  let attackRoll;
-  let advantageRolls = null;
-  
-  // Roll with advantage if hidden
-  if (isHidden) {
-    const roll1 = rollDiceFn(20);
-    const roll2 = rollDiceFn(20);
-    attackRoll = Math.max(roll1, roll2);
-    advantageRolls = [roll1, roll2];
-  } else {
-    attackRoll = rollDiceFn(20);
-  }
-  
-  const totalAttack = attackRoll + (weapon.attack_bonus || 0);
-  const isCritical = attackRoll === 20;
-  
-  let baseDamageRoll;
-  let conditionalDamageRolls = [];
-  let conditionalDamageTotal = 0;
-  let totalDamage;
-  
-  // Roll weapon damage dice
-  const damageBonus = weapon.damage_bonus || 0;
-  if (weapon.damage_dice?.includes('d8')) {
-    baseDamageRoll = rollDiceFn(8) + damageBonus;
-    // Double dice on critical hit
-    if (isCritical) {
-      baseDamageRoll += rollDiceFn(8);
-    }
-  } else {
-    baseDamageRoll = rollDiceFn(6) + damageBonus;
-    // Double dice on critical hit
-    if (isCritical) {
-      baseDamageRoll += rollDiceFn(6);
-    }
-  }
-  
-  // Check for conditional damage bonuses (like Sneak Attack)
-  const gameState = { 
-    isHidden, 
-    hasAdvantage: isHidden || advantageRolls, 
-    allyNearby: false // Could be parameterized later
-  };
-  
-  const conditionalBonuses = getConditionalDamageBonuses(
-    character?.dnd_character_abilities || [], 
-    selectedWeapon, 
-    'weapon',
-    gameState
-  );
-  
-  for (const bonus of conditionalBonuses) {
-    if (bonus.damage_dice?.includes('3d6')) {
-      // Roll 3d6 for Sneak Attack
-      for (let i = 0; i < 3; i++) {
-        const roll = rollDiceFn(6);
-        conditionalDamageRolls.push(roll);
-        conditionalDamageTotal += roll;
-      }
-      
-      // Double conditional damage dice on critical hit
-      if (isCritical) {
-        for (let i = 0; i < 3; i++) {
-          const roll = rollDiceFn(6);
-          conditionalDamageRolls.push(roll);
-          conditionalDamageTotal += roll;
-        }
-      }
-    }
-  }
-  
-  totalDamage = baseDamageRoll + conditionalDamageTotal;
-  
-  return {
-    attackRoll,
-    advantageRolls,
-    totalAttack,
-    baseDamageRoll,
-    sneakAttackRolls: conditionalDamageRolls, // Renamed for backwards compatibility
-    sneakAttackTotal: conditionalDamageTotal, // Renamed for backwards compatibility
-    conditionalDamageRolls,
-    conditionalDamageTotal,
-    conditionalBonuses: conditionalBonuses.map(b => ({ name: b.name, condition: b.condition_met })),
-    totalDamage,
-    weapon: weapon.name,
-    weaponDiceSize: weapon.damage_dice?.includes('d8') ? 8 : 6,
-    isCritical
-  };
-};
